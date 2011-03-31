@@ -95,6 +95,30 @@ function profile.close()
   end
   
 
+  -- Write annotated source
+  local visit_format = ("%%%dd"):format(("%d"):format(max_visits):len())
+  local line_format = " "..visit_format.."%12.2f%12.2f%12.2f%5d | %-s\n"
+  local asf = io.open("annotated-source.txt", "w")
+  for _, f in pairs(source_files) do
+    local s = io.open(f.name, "r")
+    if s then
+      asf:write("\n")
+      asf:write("====================================================================================================\n")
+      asf:write(f.name, "  ", "Times in ", time_units, "\n\n")
+      local i = 1
+      for l in s:lines() do
+        local rec = f.lines[i]
+        if rec then
+          asf:write(line_format:format(rec.visits, (rec.self_time+rec.child_time) / divisor, rec.self_time / divisor, rec.child_time / divisor, i, l))
+        else
+          asf:write(line_format:format(0, 0, 0, 0, i, l))
+        end
+        i = i + 1
+      end
+    end
+    s:close()
+  end
+  asf:close()
 
   local title_len = 0
   local file_lines = {}
