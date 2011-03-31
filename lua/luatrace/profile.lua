@@ -26,12 +26,25 @@ function profile.record(a, b, c)
 
   elseif a == "<" then
     if stack_top > 1 then
-      local callee_time = stack[stack_top].frame_time
+      local callee = stack[stack_top]
       stack[stack_top] = nil
       stack_top = stack_top - 1
       local top = stack[stack_top]
-      top.file.lines[top.current_line].child_time = top.file.lines[top.current_line].child_time + callee_time
-      top.frame_time = top.frame_time + callee_time
+      top.file.lines[top.current_line].child_time = top.file.lines[top.current_line].child_time + callee.frame_time
+      top.frame_time = top.frame_time + callee.frame_time
+
+      -- Recursive functions are hard - we have to crawl up the stack, and if we
+      -- find the function that just returned running higher up the stack,
+      -- subtract the callee time from the higher function's child time (because
+      -- we're going to add the same time to the higher copy of the function
+      -- later and we don't want to add it twice)
+      for j = stack_top, 1, -1 do
+        local framej = stack[j]
+        if framej.filename == callee.filename and framej.line_defined == callee.line_defined then
+          framej.file.lines[framej.current_line].child_time = framej.file.lines[framej.current_line].child_time - callee.frame_time
+          break
+        end
+      end
     end
 
   else
