@@ -75,13 +75,63 @@ function profile.close()
 
   table.sort(all_lines, function(a, b) return a.line.self_time + a.line.child_time > b.line.self_time + b.line.child_time end)
 
-  io.stderr:write(("%-35s%8s%12s%12s%12s\n"):
-    format("File:line", "Visits", "Total", "Self", "Children"))
+
+  local title_len, max_time = 0, 0
+  local file_lines = {}
   for i = 1, math.min(20, #all_lines) do
     local l = all_lines[i]
-    local name = ("%s:%d"):format(l.filename, l.line_number)
-    io.stderr:write(("%-35s%8d%12.6f%12.6f%12.6f\n"):format(name, l.line.visits,
-      l.line.self_time/1000000 + l.line.child_time/1000000, l.line.self_time/1000000, l.line.child_time/1000000))
+
+    l.title = ("%s:%d"):format(l.filename, l.line_number)
+    title_len = math.max(title_len, l.title:len())
+    
+    max_time = math.max(max_time, l.line.self_time + l.line.child_time)
+
+    -- Record the lines of the files we want to see
+    local fl = file_lines[l.filename]
+    if not fl then
+      fl = {}
+      file_lines[l.filename] = fl
+    end
+    fl[l.line_number] = i
+  end
+
+  -- Find the text of the lines
+  for file_name, line_numbers in pairs(file_lines) do
+    local f = assert(io.open(file_name, "r"))
+    if f then
+      local i = 1
+      for l in f:lines() do
+        local j = line_numbers[i]
+        if j then
+          all_lines[j].line_text = l
+        end
+        i = i + 1
+      end
+    end
+    f:close()
+  end
+
+  local divisor
+  if max_time < 10000 then
+    io.stderr:write("Times in microseconds\n")
+    divisor = 1
+  elseif max_time < 10000000 then
+    io.stderr:write("Times in milliseconds\n")
+    divisor = 1000
+  else
+    io.stderr:write("Times in seconds\n")
+    divisor = 1000000
+  end
+
+  header_format = ("%%-%ds%%8s%%12s%%12s%%12s  Line\n"):format(title_len+2)
+  line_format = ("%%-%ds%%8d%%12.2f%%12.2f%%12.2f  %%-s\n"):format(title_len+2)
+  io.stderr:write(header_format:format("File:line", "Visits", "Total", "Self", "Children"))
+
+  for i = 1, math.min(20, #all_lines) do
+    local l = all_lines[i]
+    io.stderr:write(line_format:format(l.title, l.line.visits,
+      (l.line.self_time + l.line.child_time) / divisor, l.line.self_time/divisor, l.line.child_time/divisor,
+      l.line_text or "-"))
   end
 end
 
