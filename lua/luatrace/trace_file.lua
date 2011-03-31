@@ -1,19 +1,19 @@
 -- Write luatrace traces to a file. Each line is one of
--- S <filename> <linedefined>           -- Start a trace at filename somewhere in the function defined at linedefined
--- <linenumber> <microseconds>          -- Accumulate microseconds against linenumber
--- > <filename> <linedefined>           -- Call into the function defined at linedefined of filename
--- <                                    -- Return from a function
+-- S <filename> <linedefined> <lastlinedefined> -- Start a trace at filename somewhere in the function defined at linedefined
+-- <linenumber> <microseconds>                  -- Accumulate microseconds against linenumber
+-- > <filename> <linedefined> <lastlinedefined> -- Call into the function defined at linedefined of filename
+-- <                                            -- Return from a function
 -- Usually, a line will have time accumulated to it before and after it calls a function, so
 -- function b() return 1 end
 -- function c() return 2 end
 -- a = b() + c()
 -- will be traced as
 -- 3 (time)
--- > (file) 1
+-- > (file) 1 1
 -- 1 (time)
 -- <
 -- 3 (time)
--- > (file) 2
+-- > (file) 2 2
 -- 2 (time)
 -- <
 -- 3 (time)
@@ -32,9 +32,9 @@ local file                              -- The file to write traces to
 
 -- Write traces to a file ------------------------------------------------------
 
-local function write_trace(a, b, c)
+local function write_trace(a, b, c, d)
   if a == ">" or a == "S" then
-    file:write(a, " ", tostring(b), " ", tostring(c), "\n")
+    file:write(a, " ", tostring(b), " ", tostring(c), " ", tostring(d), "\n")
   elseif a == "<" then
     file:write("<\n")
   else
@@ -46,7 +46,7 @@ end
 local function write_traces()
   for i = 1, count do
     local t = traces[i]
-    write_trace(t[1], t[2], t[3])
+    write_trace(t[1], t[2], t[3], t[4])
   end
   count = 0
 end
@@ -56,12 +56,12 @@ end
 
 local trace_file = {}
 
-function trace_file.record(a, b, c)
+function trace_file.record(a, b, c, d)
   if limit < 2 then
-    write_trace(a, b, c)
+    write_trace(a, b, c, d)
   else
     count = count + 1
-    traces[count] = { a, b, c }
+    traces[count] = { a, b, c, d }
     if count > limit then write_traces() end
   end
 end
@@ -108,8 +108,8 @@ function trace_file.read(settings)
   for l in file:lines() do
     local l1 = l:sub(1, 1)
     if l1 == "S" or l1 == ">" then
-      local filename, line = l:match("..(%S+) (%d+)")
-      recorder.record(l1, filename, tonumber(line))
+      local filename, linedefined, lastlinedefined = l:match("..(%S+) (%d+) (%d+)")
+      recorder.record(l1, filename, tonumber(linedefined), tonumber(lastlinedefined))
     elseif l1 == "<" then
       recorder.record("<")
     else

@@ -13,16 +13,16 @@ function profile.open()
 end
 
 
-function profile.record(a, b, c)
+function profile.record(a, b, c, d)
   if a == "S" or a == ">" then
-    filename, line_defined = b, c
+    filename, line_defined, last_line_defined = b, c, d
     file = source_files[filename]
     if not file then
       file = { filename=filename, lines = {} }
       source_files[filename] = file
     end
     stack_top = stack_top + 1
-    stack[stack_top] = { file=file, filename=filename, line_defined=line_defined, frame_time=0 }
+    stack[stack_top] = { file=file, filename=filename, line_defined=line_defined, last_line_defined=last_line_defined, frame_time=0 }
 
   elseif a == "<" then
     if stack_top > 1 then
@@ -50,8 +50,15 @@ function profile.record(a, b, c)
   else
     local line, time = a, b
     total_time = total_time + time
-    
+
     local top = stack[stack_top]
+
+    if top.line_defined > 0 and
+      (line < top.line_defined or line > top.last_line_defined) then
+      io.stderr:write(("ERROR: counted execution of line %d in a function defined at %s:%d-%d\n"):
+        format(line, top.file.filename, top.line_defined, top.last_line_defined))
+    end
+
     local r = top.file.lines[line]
     if not r then
       r = { visits = 0, self_time = 0, child_time = 0 }

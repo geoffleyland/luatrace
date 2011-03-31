@@ -67,7 +67,7 @@ local function record(action, line, time)
       end
       if should_trace(callee) then
         set_current_line(callee.currentline)
-        recorder.record(">", callee.short_src, callee.linedefined)
+        recorder.record(">", callee.short_src, callee.linedefined, callee.lastlinedefined)
       end
     else
       if should_trace(callee) then
@@ -110,7 +110,7 @@ local start_short_src, start_line
 
 local function init_trace(line)
   local caller = debug.getinfo(3, "S")
-  recorder.record("S", caller.short_src, caller.linedefined)
+  recorder.record("S", caller.short_src, caller.linedefined, caller.lastlinedefined)
   current_line, accumulated_us = line, 0
 end
 
