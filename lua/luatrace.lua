@@ -57,7 +57,7 @@ local function record(action, line, time)
 
   if action == "line" then
     set_current_line(line)
-  elseif action == "call" or action == "return" then
+  elseif action == "call" or action == "return" or action == "tail return" then
     local callee = debug.getinfo(CALLEE_INDEX, "Sl")
     local caller = debug.getinfo(CALLER_INDEX, "Sl")
     

@@ -5,6 +5,7 @@
 
 static clock_t time_out, elapsed;
 static int hook_index = -1;
+static const char *const hooknames[] = {"call", "return", "line", "count", "tail return"};
 
 
 void hook(lua_State *L, lua_Debug *ar)
@@ -13,21 +14,19 @@ void hook(lua_State *L, lua_Debug *ar)
   elapsed += time_in - time_out;
   
   int event = ar->event;
-  if (event == LUA_HOOKLINE ||
-      event == LUA_HOOKCALL ||
-      event == LUA_HOOKRET)
-  {
-    lua_rawgeti(L, LUA_REGISTRYINDEX, hook_index);
-    if (event == LUA_HOOKLINE) lua_pushstring(L, "line");
-    if (event == LUA_HOOKCALL) lua_pushstring(L, "call");
-    if (event == LUA_HOOKRET)  lua_pushstring(L, "return");
-    if (event == LUA_HOOKLINE) lua_pushnumber(L, ar->currentline);
-    else lua_pushnil(L);
-    lua_pushinteger(L, elapsed);
-    lua_call(L, 3, 0);
+  lua_rawgeti(L, LUA_REGISTRYINDEX, hook_index);
+
+  lua_pushstring(L, hooknames[event]);
+
+  if (event == LUA_HOOKLINE)
+    lua_pushnumber(L, ar->currentline);
+  else
+    lua_pushnil(L);
+
+  lua_pushinteger(L, elapsed);
+  lua_call(L, 3, 0);
     
-    elapsed = 0;
-  }
+  elapsed = 0;
   time_out = clock();
 }
 
