@@ -36,10 +36,15 @@ local accumulated_us                    -- The microseconds we've accumulated fo
 -- and reset the current line and accumulated time
 local function set_current_line(l)
   if l ~= current_line then
-    recorder.record(current_line, accumulated_us)
+    -- if the current line *is* -1 then we're in a series of tail calls,
+    -- and we'll throw the accumulated time away - most of it's probably
+    -- trace overhead anyway
+    if current_line ~= -1 then
+      recorder.record(current_line, accumulated_us)
+    end
     accumulated_us = 0
+    current_line = l
   end
-  current_line = l
 end
 
 
@@ -57,7 +62,7 @@ local function record(action, line, time)
 
   if action == "line" then
     set_current_line(line)
-  elseif action == "call" or action == "return" or action == "tail return" then
+  elseif action == "call" or action == "return" then
     local callee = debug.getinfo(CALLEE_INDEX, "Sl")
     local caller = debug.getinfo(CALLER_INDEX, "Sl")
     
@@ -75,11 +80,22 @@ local function record(action, line, time)
       end
       if should_trace(caller) then
         set_current_line(caller.currentline)
+      elseif caller and caller.source:sub(1,1) == "=" then
+        -- we're about to get tail called, there's no point recording time
+        -- until we're finished with that
+        set_current_line(-1)
       end
       if should_trace(callee) then
         recorder.record("<")
       end
     end
+  elseif action == "tail return" then
+    local caller = debug.getinfo(CALLER_INDEX, "Sl")
+    -- If we've got a real caller, we're heading back to non-tail-call land
+    if should_trace(caller) then
+      set_current_line(caller.currentline)
+    end
+    recorder.record("<")
   end
 end
 
