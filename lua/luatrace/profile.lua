@@ -13,18 +13,6 @@ function profile.open()
 end
 
 
-local function call(filename, line)
-  line = tonumber(line)
-  file = source_files[filename]
-  if not file then
-    file = { name = filename, lines = {} }
-    source_files[filename] = file
-  end
-  stack_top = stack_top + 1
-  stack[stack_top] = { file=file, defined_line = line, total_time = 0 }
-end
-
-
 function profile.record(a, b, c)
   if a == "S" or a == ">" then
     filename, line = b, c
