@@ -63,7 +63,7 @@ static luaL_Reg hook_functions[] =
 };
 
 
-LUALIB_API int luaopen_c_hook(lua_State *L)
+LUALIB_API int luaopen_luatrace_c_hook(lua_State *L)
 {
   // Register the module functions
   luaL_register(L, "c_hook", hook_functions);
