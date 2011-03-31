@@ -22,21 +22,20 @@ function profile.record(a, b, c)
       source_files[filename] = file
     end
     stack_top = stack_top + 1
-    stack[stack_top] = { file=file, defined_line = line, total_time = 0 }
+    stack[stack_top] = { file=file, defined_line = line, frame_time = 0 }
 
   elseif a == "<" then
     if stack_top > 1 then
-      local total_time = stack[stack_top].total_time
+      local callee_time = stack[stack_top].frame_time
       stack[stack_top] = nil
       stack_top = stack_top - 1
       local top = stack[stack_top]
-      top.file.lines[top.current_line].child_time = top.file.lines[top.current_line].child_time + total_time
-      top.total_time = top.total_time + total_time
+      top.file.lines[top.current_line].child_time = top.file.lines[top.current_line].child_time + callee_time
+      top.frame_time = top.frame_time + callee_time
     end
 
   else
     local line, time = a, b
-    line, time = tonumber(line), tonumber(time)
     total_time = total_time + time
     
     local top = stack[stack_top]
@@ -49,7 +48,7 @@ function profile.record(a, b, c)
       r.visits = r.visits + 1
     end
     r.self_time = r.self_time + time
-    top.total_time = top.total_time + time
+    top.frame_time = top.frame_time + time
     top.current_line = line
   end
 end
