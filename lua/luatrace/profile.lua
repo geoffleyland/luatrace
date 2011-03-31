@@ -15,14 +15,14 @@ end
 
 function profile.record(a, b, c)
   if a == "S" or a == ">" then
-    filename, line = b, c
+    filename, line_defined = b, c
     file = source_files[filename]
     if not file then
-      file = { name = filename, lines = {} }
+      file = { filename=filename, lines = {} }
       source_files[filename] = file
     end
     stack_top = stack_top + 1
-    stack[stack_top] = { file=file, defined_line = line, frame_time = 0 }
+    stack[stack_top] = { file=file, filename=filename, line_defined=line_defined, frame_time=0 }
 
   elseif a == "<" then
     if stack_top > 1 then
@@ -61,7 +61,7 @@ function profile.close()
   local max_visits = 0
   for _, f in pairs(source_files) do
     for i, l in pairs(f.lines) do
-      all_lines[#all_lines + 1] = { filename=f.name, line_number=i, line=l }
+      all_lines[#all_lines + 1] = { filename=f.filename, line_number=i, line=l }
       max_visits = math.max(max_visits, l.visits)
     end
   end
@@ -87,11 +87,11 @@ function profile.close()
   local line_format = " "..visit_format.."%12.2f%12.2f%12.2f%5d | %-s\n"
   local asf = io.open("annotated-source.txt", "w")
   for _, f in pairs(source_files) do
-    local s = io.open(f.name, "r")
+    local s = io.open(f.filename, "r")
     if s then
       asf:write("\n")
       asf:write("====================================================================================================\n")
-      asf:write(f.name, "  ", "Times in ", time_units, "\n\n")
+      asf:write(f.filename, "  ", "Times in ", time_units, "\n\n")
       local i = 1
       for l in s:lines() do
         local rec = f.lines[i]
