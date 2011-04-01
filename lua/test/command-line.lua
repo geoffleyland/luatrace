@@ -1,4 +1,4 @@
--- run me with 'lua -luatrace cl-test.lua'
+-- run me with 'lua -luatrace command-line.lua'
 function b()
   return 1
 end
