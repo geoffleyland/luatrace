@@ -80,21 +80,24 @@ local function record(action, line, time)
 
   if action == "line" then
     set_current_line(line)
+
   elseif action == "call" or action == "return" then
     local callee = debug.getinfo(CALLEE_INDEX, "Sln")
     local caller = debug.getinfo(CALLER_INDEX, "Sl")
     
     if action == "call" then
       if should_trace(caller) then
+        -- square up the caller's time to the last line executed
         set_current_line(caller.currentline)
       end
       if should_trace(callee) then
+        -- start charging the callee for time, and record where we're going
         set_current_line(callee.currentline)
         recorder.record(">", callee.short_src, callee.linedefined, callee.lastlinedefined)
       elseif callee and callee.source == "=[C]" then
         if callee.name == "yield" then
-          -- Treat it like a return, but we don't know where we're headed yet
-          -- some time is lost (if yield gets renamed, all bets are off)
+          -- We don't know where we're headed yet so some time is lost (and if
+          -- yield gets renamed, all bets are off)
           set_current_line(-1)
           recorder.record("<")
         else
@@ -103,25 +106,30 @@ local function record(action, line, time)
           watch_thread = coroutine.running() or 1
         end
       end
-    else
+
+    else -- action == "return"
       if should_trace(callee) then
+        -- square up the callee's time to the last line executed
         set_current_line(callee.currentline)
       end
-      if should_trace(caller) then
-        set_current_line(caller.currentline)
-      elseif not caller                         -- final return from a coroutine
+      if not caller                             -- final return from a coroutine
         or caller.source == "=(tail call)" then -- about to get tail-returned
         -- In both cases, there's no point recording time until we're
         -- back on our feet
         set_current_line(-1)
+      elseif should_trace(caller) then
+        -- The caller gets charged for time from here on
+        set_current_line(caller.currentline)
       end
       if should_trace(callee) then
         recorder.record("<")
       end
     end
+
   elseif action == "tail return" then
     local caller = debug.getinfo(CALLER_INDEX, "Sl")
     -- If we've got a real caller, we're heading back to non-tail-call land
+    -- start charging the caller for time
     if should_trace(caller) then
       set_current_line(caller.currentline)
     end
