@@ -31,6 +31,12 @@ local recorder                          -- The thing that's recording traces
 local current_line                      -- The line we currently think is active
 local accumulated_us                    -- The microseconds we've accumulated for that line
 
+local thread_map                        -- Map threads to numbers
+local thread_count                      -- How many threads we've mapped
+local watch_thread                      -- The thread we're trying to spot changing
+
+local CALLEE_INDEX, CALLER_INDEX        -- The indexes used for getinfo depend on the hook we're using
+
 
 -- Emit a trace if the current line has changed
 -- and reset the current line and accumulated time
@@ -54,25 +60,25 @@ local function should_trace(f)
 end
 
 
-local CALLEE_INDEX, CALLER_INDEX
-
-local watch_thread
-
 -- Record an action reported to the hook.
 local function record(action, line, time)
   accumulated_us = accumulated_us + time
 
   if watch_thread then
-    if action == "call" then
-      -- Whether the thread changed (and this is the *first* resume on the thread)
-      -- or the thread was dead, and we're still in the same thread doesn't matter
-      -- we're going to do what we want - report a call.
-      watch_thread = nil
-    elseif action == "line" then
-      if watch_thread ~= (coroutine.running() or 1) then
-        -- This was a resume into a running thread.  We make it look like a call
-        local current = debug.getinfo(CALLEE_INDEX, "Sl")
-        recorder.record(">", current.short_src, current.linedefined, current.lastlinedefined)
+    if action == "call" or action == "line" then
+      local current_thread = coroutine.running() or "main"
+      if watch_thread ~= current_thread then
+        -- Get or make up the thread id
+        local thread_id = thread_map[current_thread]
+        if not thread_id then
+          thread_count = thread_count + 1
+          thread_map[current_thread] = thread_count
+          thread_id = thread_count
+        end
+        -- Flush any time remaining on the caller
+        set_current_line(-1)
+        -- Record a resume
+        recorder.record("R", thread_id)
       end
       watch_thread = nil
     end
@@ -99,11 +105,11 @@ local function record(action, line, time)
           -- We don't know where we're headed yet so some time is lost (and if
           -- yield gets renamed, all bets are off)
           set_current_line(-1)
-          recorder.record("<")
-        else
+          recorder.record("Y")
+        else                                    -- this might be a resume!
           -- Because of coroutine.wrap, any c function could resume a different
           -- thread.  Watch the current thread and catch it if it changes.
-          watch_thread = coroutine.running() or 1
+          watch_thread = coroutine.running() or "main"
         end
       end
 
@@ -117,12 +123,18 @@ local function record(action, line, time)
         -- In both cases, there's no point recording time until we're
         -- back on our feet
         set_current_line(-1)
+      elseif watch_thread and callee and callee.source == "=[C]" and callee.name == "yield" then
+        -- Don't trace returns from yields, even into traceable functions.
+        -- We'll catch them later with watch_thread
       elseif should_trace(caller) then
         -- The caller gets charged for time from here on
         set_current_line(caller.currentline)
       end
       if should_trace(callee) then
         recorder.record("<")
+      end
+      if not caller then                        -- final return from a coroutine,
+        recorder.record("Y")                    -- looks like a yield
       end
     end
 
@@ -166,6 +178,7 @@ local function init_trace(line)
   local caller = debug.getinfo(3, "S")
   recorder.record("S", caller.short_src, caller.linedefined, caller.lastlinedefined)
   current_line, accumulated_us = line, 0
+  thread_map, thread_count = { [coroutine.running() or "main"] = 1 }, 1
 end
 
 local function hook_lua_start(action, line)

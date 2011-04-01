@@ -3,6 +3,9 @@ local trace_file = require("luatrace.trace_file")
 local source_files                              -- Map of source files we've seen
 local functions                                 -- Map of functions
 
+local threads                                   -- All the running threads
+local thread_stack                              -- and the order they're running in
+
 local stack                                     -- Call stack
 
 local total_time                                -- Running total of all the time we've recorded
@@ -17,6 +20,9 @@ local profile = {}
 
 function profile.open()
   source_files, functions = {}, {}
+  local main_thread = { top=0 }
+  threads = { main_thread }
+  thread_stack = { main_thread, top=1 }
   stack = { top=0 }
   total_time = 0
   trace_count, error_count = 0, 0
@@ -44,13 +50,37 @@ local function get_function(filename, line_defined, last_line_defined)
 end
 
 
-local function push(frame)
+local function get_thread(thread_id)
+  local thread = threads[thread_id]
+  if not thread then
+    thread = { top=0 }
+    threads[thread_id] = thread
+  end
+  return thread
+end
+
+
+local function replay_push(frame)
   stack.top = stack.top + 1
   stack[stack.top] = frame
 end
 
 
-local function pop()
+local function push(frame)
+  replay_push(frame)
+  local thread = thread_stack[thread_stack.top]
+  thread.top = thread.top + 1
+  thread[thread.top] = { func=frame.func }
+end
+
+
+local function push_thread(thread)
+  thread_stack.top = thread_stack.top + 1
+  thread_stack[thread_stack.top] = thread
+end
+
+
+local function replay_pop()
   local frame = stack[stack.top]
   stack[stack.top] = nil
   stack.top = stack.top - 1
@@ -58,8 +88,30 @@ local function pop()
 end
 
 
+local function pop()
+  local frame = replay_pop()
+  local thread = thread_stack[thread_stack.top]
+  thread[thread.top] = nil
+  thread.top = thread.top - 1
+  return frame
+end
+
+
+local function pop_thread()
+  local thread = thread_stack[thread_stack.top]
+  thread_stack[thread_stack.top] = nil
+  thread_stack.top = thread_stack.top - 1
+  return thread
+end
+
+
 local function get_top()
   return stack[stack.top]
+end
+
+
+local function thread_top()
+  return thread_stack[thread_stack.top]
 end
 
 
@@ -71,6 +123,11 @@ local function get_line(line_number)
     top.source_file.lines[line_number] = line
   end
   return line
+end
+
+
+local function call(filename, line_defined, last_line_defined)
+  push{ source_file=source_file, func=func, frame_time=0 }
 end
 
 
@@ -110,6 +167,24 @@ function profile.record(a, b, c, d)
         end
       end
     end
+
+  elseif a == "R" then                         -- Resume
+    local thread_id = b
+    local thread = get_thread(thread_id)
+    -- replay the thread onto the stack
+    for _, frame in ipairs(thread) do
+      replay_push{ source_file=frame.func.source_file, func=frame.func, frame_time=0, current_line=frame.current_line }
+    end
+    push_thread(thread)
+
+  elseif a == "Y" then                         -- Yield
+    local thread = thread_top()
+    -- unwind the thread from the stack
+    for i = thread.top, 1, -1 do
+      thread[i].current_line = get_top().current_line
+      replay_pop()
+    end
+    pop_thread()
 
   else                                         -- Line
     local line_number, time = a, b

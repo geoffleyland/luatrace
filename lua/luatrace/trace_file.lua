@@ -1,8 +1,9 @@
 -- Write luatrace traces to a file. Each line is one of
--- S <filename> <linedefined> <lastlinedefined> -- Start a trace at filename somewhere in the function defined at linedefined
--- <linenumber> <microseconds>                  -- Accumulate microseconds against linenumber
--- > <filename> <linedefined> <lastlinedefined> -- Call into the function defined at linedefined of filename
+-- [S>] <filename> <linedefined> <lastlinedefined>  -- Start or call into a trace at filename somewhere in the function defined at linedefined
 -- <                                            -- Return from a function
+-- R <thread_id>                                -- Resume the thread thread_id
+-- Y                                            -- Yield
+-- <linenumber> <microseconds>                  -- Accumulate microseconds against linenumber
 -- Usually, a line will have time accumulated to it before and after it calls a function, so
 -- function b() return 1 end
 -- function c() return 2 end
@@ -35,8 +36,10 @@ local file                              -- The file to write traces to
 local function write_trace(a, b, c, d)
   if a == ">" or a == "S" then
     file:write(a, " ", tostring(b), " ", tostring(c), " ", tostring(d), "\n")
-  elseif a == "<" then
-    file:write("<\n")
+  elseif a == "R" then
+    file:write("R ", tostring(b), "\n")
+  elseif a == "<" or a == "Y" then
+    file:write(a, "\n")
   else
     file:write(tonumber(a), " ", ("%d"):format(tonumber(b)), "\n")
   end
@@ -108,10 +111,13 @@ function trace_file.read(settings)
   for l in file:lines() do
     local l1 = l:sub(1, 1)
     if l1 == "S" or l1 == ">" then
-      local filename, linedefined, lastlinedefined = l:match("..(%S+) (%d+) (%d+)")
+      local filename, linedefined, lastlinedefined = l:match(". (%S+) (%d+) (%d+)")
       recorder.record(l1, filename, tonumber(linedefined), tonumber(lastlinedefined))
-    elseif l1 == "<" then
-      recorder.record("<")
+    elseif l1 == "<" or l1 == "Y" then
+      recorder.record(l1)
+    elseif l1 == "R" then
+      local thread_id = l:match(". (%d+)")
+      recorder.record(l1, tonumber(thread_id))
     else
       local line, time = l:match("(%d+) (%d+)")
       recorder.record(tonumber(line), tonumber(time))
