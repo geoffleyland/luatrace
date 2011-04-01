@@ -1,6 +1,7 @@
 local trace_file = require("luatrace.trace_file")
 
 local source_files                              -- Map of source files we've seen
+local functions                                 -- Map of functions
 
 local stack                                     -- Call stack
 local stack_top                                 -- And its top
@@ -16,37 +17,68 @@ local profile = {}
 --------------------------------------------------------------------------------
 
 function profile.open()
-  source_files = {}
+  source_files, functions = {}, {}
   stack, stack_top = {}, 0
   total_time = 0
   trace_count, error_count = 0, 0
 end
 
 
+local function get_source_file(filename)
+  local source_file = source_files[filename]
+  if not source_file then
+    source_file = { filename=filename, lines = {} }
+    source_files[filename] = source_file
+  end
+  return source_file
+end
+
+
+local function get_function(filename, line_defined, last_line_defined)
+  local name = filename..":"..tostring(line_defined).."-"..tostring(last_line_defined)
+  local f = functions[name]
+  if not f then
+    f = { name=name, source_file=get_source_file(filename), line_defined=line_defined, last_line_defined=last_line_defined }
+    functions[name] = f
+  end
+  return f
+end
+
+
+local function push(frame)
+  stack_top = stack_top + 1
+  stack[stack_top] = frame
+end
+
+
+local function pop()
+  local frame = stack[stack_top]
+  stack[stack_top] = nil
+  stack_top = stack_top - 1
+  return frame
+end
+
+
 function profile.record(a, b, c, d)
   trace_count = trace_count + 1
-  if a == "S" or a == ">" then
-    filename, line_defined, last_line_defined = b, c, d
-    file = source_files[filename]
-    if not file then
-      file = { filename=filename, lines = {} }
-      source_files[filename] = file
-    end
-    stack_top = stack_top + 1
-    stack[stack_top] = { file=file, filename=filename, line_defined=line_defined, last_line_defined=last_line_defined, frame_time=0 }
 
-  elseif a == "<" then
+  if a == "S" or a == ">" then                  -- Call or start
+    local filename, line_defined, last_line_defined = b, c, d
+    local source_file = get_source_file(filename)
+    local func = get_function(filename, line_defined, last_line_defined)
+    push{ source_file=source_file, func=func, frame_time=0 }
+
+  elseif a == "<" then                          -- Return
     if stack_top <= 1 then
       error_count = error_count + 1
       local top = stack[stack_top]
       io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
-        format(error_count, trace_count, top.file.filename, top.line_defined, top.last_line_defined))
+        format(error_count, trace_count, top.source_file.filename, top.line_defined, top.last_line_defined))
     else
-      local callee = stack[stack_top]
-      stack[stack_top] = nil
-      stack_top = stack_top - 1
+      local callee = pop()
       local top = stack[stack_top]
-      top.file.lines[top.current_line].child_time = top.file.lines[top.current_line].child_time + callee.frame_time
+      local current_line = top.source_file.lines[top.current_line]
+      current_line.child_time = current_line.child_time + callee.frame_time
       top.frame_time = top.frame_time + callee.frame_time
 
       -- Recursive functions are hard - we have to crawl up the stack, and if we
@@ -56,30 +88,31 @@ function profile.record(a, b, c, d)
       -- later and we don't want to add it twice)
       for j = stack_top, 1, -1 do
         local framej = stack[j]
-        if framej.filename == callee.filename and framej.line_defined == callee.line_defined then
-          framej.file.lines[framej.current_line].child_time = framej.file.lines[framej.current_line].child_time - callee.frame_time
+        if framej.source_file.filename == callee.source_file.filename and framej.line_defined == callee.line_defined then
+          local current_line = framej.source_file.lines[framej.current_line]
+          current_line.child_time = current_line.child_time - callee.frame_time
           break
         end
       end
     end
 
-  else
+  else                                         -- Line
     local line, time = a, b
     total_time = total_time + time
 
     local top = stack[stack_top]
 
-    if top.line_defined > 0 and
-      (line < top.line_defined or line > top.last_line_defined) then
+    if top.func.line_defined > 0 and
+      (line < top.func.line_defined or line > top.func.last_line_defined) then
       error_count = error_count + 1
       io.stderr:write(("ERROR (%4d, line %7d): counted execution of %d microseconds at line %d of a function defined at %s:%d-%d\n"):
-        format(error_count, trace_count, time, line, top.file.filename, top.line_defined, top.last_line_defined))
+        format(error_count, trace_count, time, line, top.source_file.filename, top.func.line_defined, top.func.last_line_defined))
     end
 
-    local r = top.file.lines[line]
+    local r = top.source_file.lines[line]
     if not r then
       r = { visits = 0, self_time = 0, child_time = 0 }
-      top.file.lines[line] = r
+      top.source_file.lines[line] = r
     end
     if top.current_line ~= line then
       r.visits = r.visits + 1
