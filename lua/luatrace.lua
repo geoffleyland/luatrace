@@ -104,12 +104,19 @@ local function record(action, line, time)
         -- start charging the callee for time, and record where we're going
         set_current_line(callee.currentline)
         recorder.record(">", callee.short_src, callee.linedefined, callee.lastlinedefined)
-      elseif callee and callee.source == "=[C]" then
+      end
+      if callee and callee.source == "=[C]" then
         if callee.name == "yield" then
           -- We don't know where we're headed yet so some time is lost (and if
           -- yield gets renamed, all bets are off)
           set_current_line(-1)
           recorder.record("Y")
+        elseif callee.name == "pcall" or callee.name == "xpcall" then
+          set_current_line(-1)
+          recorder.record("P")
+        elseif callee.name == "error" then
+          set_current_line(-1)
+          recorder.record("E")
         else                                    -- this might be a resume!
           -- Because of coroutine.wrap, any c function could resume a different
           -- thread.  Watch the current thread and catch it if it changes.

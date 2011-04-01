@@ -3,6 +3,8 @@
 -- <                                            -- Return from a function
 -- R <thread_id>                                -- Resume the thread thread_id
 -- Y                                            -- Yield
+-- P                                            -- pcall - the current line is protected for the duration of the following call
+-- E                                            -- Error - unwind the stack until you find a p.
 -- <linenumber> <microseconds>                  -- Accumulate microseconds against linenumber
 -- Usually, a line will have time accumulated to it before and after it calls a function, so
 -- function b() return 1 end
@@ -38,7 +40,7 @@ local function write_trace(a, b, c, d)
     file:write(a, " ", tostring(b), " ", tostring(c), " ", tostring(d), "\n")
   elseif a == "R" then
     file:write("R ", tostring(b), "\n")
-  elseif a == "<" or a == "Y" then
+  elseif type(a) == "string" then               -- It's one of <, Y, P or E
     file:write(a, "\n")
   else
     file:write(tonumber(a), " ", ("%d"):format(tonumber(b)), "\n")
@@ -113,11 +115,11 @@ function trace_file.read(settings)
     if l1 == "S" or l1 == ">" then
       local filename, linedefined, lastlinedefined = l:match(". (%S+) (%d+) (%d+)")
       recorder.record(l1, filename, tonumber(linedefined), tonumber(lastlinedefined))
-    elseif l1 == "<" or l1 == "Y" then
-      recorder.record(l1)
     elseif l1 == "R" then
       local thread_id = l:match(". (%d+)")
       recorder.record(l1, tonumber(thread_id))
+    elseif l1:match("[<YPE]") then
+      recorder.record(l1)
     else
       local line, time = l:match("(%d+) (%d+)")
       recorder.record(tonumber(line), tonumber(time))

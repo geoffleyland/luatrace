@@ -80,20 +80,13 @@ local function push_thread(thread)
 end
 
 
-local function replay_pop()
-  local frame = stack[stack.top]
-  stack[stack.top] = nil
-  stack.top = stack.top - 1
-  return frame
+local function get_top()
+  return stack[stack.top]
 end
 
 
-local function pop()
-  local frame = replay_pop()
-  local thread = thread_stack[thread_stack.top]
-  thread[thread.top] = nil
-  thread.top = thread.top - 1
-  return frame
+local function thread_top()
+  return thread_stack[thread_stack.top]
 end
 
 
@@ -105,13 +98,26 @@ local function pop_thread()
 end
 
 
-local function get_top()
-  return stack[stack.top]
+local function replay_pop()
+  local frame = stack[stack.top]
+  stack[stack.top] = nil
+  stack.top = stack.top - 1
+  return frame
 end
 
 
-local function thread_top()
-  return thread_stack[thread_stack.top]
+local function pop()
+  local frame = replay_pop()
+  local thread = thread_top()
+  if thread.top == 0 then
+    pop_thread()
+    thread = thread_top()
+  end
+  if thread then
+    thread[thread.top] = nil
+    thread.top = thread.top - 1
+  end
+  return frame
 end
 
 
@@ -123,6 +129,27 @@ local function get_line(line_number)
     top.source_file.lines[line_number] = line
   end
   return line
+end
+
+
+local function play_return(callee, caller)
+  local current_line = caller.source_file.lines[caller.current_line]
+  current_line.child_time = current_line.child_time + callee.frame_time
+  caller.frame_time = caller.frame_time + callee.frame_time
+
+  -- Recursive functions are hard - we have to crawl up the stack, and if we
+  -- find the function that just returned running higher up the stack,
+  -- subtract the callee time from the higher function's child time (because
+  -- we're going to add the same time to the higher copy of the function
+  -- later and we don't want to add it twice)
+  for j = stack.top, 1, -1 do
+    local framej = stack[j]
+    if framej.source_file.filename == callee.source_file.filename and framej.func.line_defined == callee.func.line_defined then
+      local current_line = framej.source_file.lines[framej.current_line]
+      current_line.child_time = current_line.child_time - callee.frame_time
+      break
+    end
+  end
 end
 
 
@@ -144,23 +171,8 @@ function profile.record(a, b, c, d)
     else
       local callee = pop()
       local caller = get_top()
-      local current_line = caller.source_file.lines[caller.current_line]
-      current_line.child_time = current_line.child_time + callee.frame_time
-      caller.frame_time = caller.frame_time + callee.frame_time
-
-      -- Recursive functions are hard - we have to crawl up the stack, and if we
-      -- find the function that just returned running higher up the stack,
-      -- subtract the callee time from the higher function's child time (because
-      -- we're going to add the same time to the higher copy of the function
-      -- later and we don't want to add it twice)
-      for j = stack.top, 1, -1 do
-        local framej = stack[j]
-        if framej.source_file.filename == callee.source_file.filename and framej.func.line_defined == callee.func.line_defined then
-          local current_line = framej.source_file.lines[framej.current_line]
-          current_line.child_time = current_line.child_time - callee.frame_time
-          break
-        end
-      end
+      caller.protected = false
+      play_return(callee, caller)
     end
 
   elseif a == "R" then                         -- Resume
@@ -176,9 +188,27 @@ function profile.record(a, b, c, d)
     local thread = thread_top()
     -- unwind the thread from the stack
     for i = thread.top, 1, -1 do
-      thread[i].current_line = replay_pop().current_line
+      local callee = replay_pop()
+      local caller = get_top() 
+      thread[i].current_line = callee.current_line
+      play_return(callee, caller)
     end
     pop_thread()
+
+  elseif a == "P" then                         -- pcall
+    get_top().protected = true
+
+  elseif a == "E" then                         -- Error!
+    while true do
+      local callee = pop()
+      local caller = get_top()
+      if not caller then break end
+      play_return(callee, caller)
+      if caller.protected then
+        caller.protected = false
+        break
+      end
+    end
 
   else                                         -- Line
     local line_number, time = a, b
