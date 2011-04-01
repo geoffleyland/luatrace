@@ -4,12 +4,13 @@ local source_files
 local stack
 local stack_top
 local total_time
+local errors
 
 local profile = {}
 
 
 function profile.open()
-  source_files, stack, stack_top, total_time = {}, {}, 0, 0
+  source_files, stack, stack_top, total_time, errors = {}, {}, 0, 0, 0
 end
 
 
@@ -55,8 +56,9 @@ function profile.record(a, b, c, d)
 
     if top.line_defined > 0 and
       (line < top.line_defined or line > top.last_line_defined) then
-      io.stderr:write(("ERROR: counted execution of %d microseconds at line %d of a function defined at %s:%d-%d\n"):
-        format(time, line, top.file.filename, top.line_defined, top.last_line_defined))
+      errors = errors + 1
+      io.stderr:write(("ERROR (%4d): counted execution of %d microseconds at line %d of a function defined at %s:%d-%d\n"):
+        format(errors, time, line, top.file.filename, top.line_defined, top.last_line_defined))
     end
 
     local r = top.file.lines[line]
