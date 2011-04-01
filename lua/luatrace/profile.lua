@@ -176,8 +176,7 @@ function profile.record(a, b, c, d)
     local thread = thread_top()
     -- unwind the thread from the stack
     for i = thread.top, 1, -1 do
-      thread[i].current_line = get_top().current_line
-      replay_pop()
+      thread[i].current_line = replay_pop().current_line
     end
     pop_thread()
 
