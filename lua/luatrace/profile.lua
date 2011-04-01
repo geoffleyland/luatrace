@@ -1,22 +1,30 @@
 local trace_file = require("luatrace.trace_file")
 
-local source_files
-local stack
-local stack_top
-local total_time
-local count
-local errors
+local source_files                              -- Map of source files we've seen
+
+local stack                                     -- Call stack
+local stack_top                                 -- And its top
+
+local total_time                                -- Running total of all the time we've recorded
+
+local trace_count                               -- How many traces we've seen (for reporting errors)
+local error_count                               -- How many errors we've seen
 
 local profile = {}
 
 
+--------------------------------------------------------------------------------
+
 function profile.open()
-  source_files, stack, stack_top, total_time, count, errors = {}, {}, 0, 0, 0, 0
+  source_files = {}
+  stack, stack_top = {}, 0
+  total_time = 0
+  trace_count, error_count = 0, 0
 end
 
 
 function profile.record(a, b, c, d)
-  count = count + 1
+  trace_count = trace_count + 1
   if a == "S" or a == ">" then
     filename, line_defined, last_line_defined = b, c, d
     file = source_files[filename]
@@ -29,10 +37,10 @@ function profile.record(a, b, c, d)
 
   elseif a == "<" then
     if stack_top <= 1 then
-      errors = errors + 1
+      error_count = error_count + 1
       local top = stack[stack_top]
       io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
-        format(errors, count, top.file.filename, top.line_defined, top.last_line_defined))
+        format(error_count, trace_count, top.file.filename, top.line_defined, top.last_line_defined))
     else
       local callee = stack[stack_top]
       stack[stack_top] = nil
@@ -63,9 +71,9 @@ function profile.record(a, b, c, d)
 
     if top.line_defined > 0 and
       (line < top.line_defined or line > top.last_line_defined) then
-      errors = errors + 1
+      error_count = error_count + 1
       io.stderr:write(("ERROR (%4d, line %7d): counted execution of %d microseconds at line %d of a function defined at %s:%d-%d\n"):
-        format(errors, count, time, line, top.file.filename, top.line_defined, top.last_line_defined))
+        format(error_count, trace_count, time, line, top.file.filename, top.line_defined, top.last_line_defined))
     end
 
     local r = top.file.lines[line]
