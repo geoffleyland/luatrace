@@ -28,7 +28,12 @@ function profile.record(a, b, c, d)
     stack[stack_top] = { file=file, filename=filename, line_defined=line_defined, last_line_defined=last_line_defined, frame_time=0 }
 
   elseif a == "<" then
-    if stack_top > 1 then
+    if stack_top <= 1 then
+      errors = errors + 1
+      local top = stack[stack_top]
+      io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
+        format(errors, count, top.file.filename, top.line_defined, top.last_line_defined))
+    else
       local callee = stack[stack_top]
       stack[stack_top] = nil
       stack_top = stack_top - 1
