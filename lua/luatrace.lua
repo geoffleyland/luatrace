@@ -80,8 +80,8 @@ local function record(action, line, time)
       end
       if should_trace(caller) then
         set_current_line(caller.currentline)
-      elseif caller and caller.source:sub(1,1) == "=" then
-        -- we're about to get tail called, there's no point recording time
+      elseif caller and caller.source == "=(tail call)" then
+        -- we're about to get tail-returned, there's no point recording time
         -- until we're finished with that
         set_current_line(-1)
       end
