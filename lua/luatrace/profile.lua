@@ -4,7 +4,6 @@ local source_files                              -- Map of source files we've see
 local functions                                 -- Map of functions
 
 local stack                                     -- Call stack
-local stack_top                                 -- And its top
 
 local total_time                                -- Running total of all the time we've recorded
 
@@ -18,7 +17,7 @@ local profile = {}
 
 function profile.open()
   source_files, functions = {}, {}
-  stack, stack_top = {}, 0
+  stack = { top=0 }
   total_time = 0
   trace_count, error_count = 0, 0
 end
@@ -46,16 +45,21 @@ end
 
 
 local function push(frame)
-  stack_top = stack_top + 1
-  stack[stack_top] = frame
+  stack.top = stack.top + 1
+  stack[stack.top] = frame
 end
 
 
 local function pop()
-  local frame = stack[stack_top]
-  stack[stack_top] = nil
-  stack_top = stack_top - 1
+  local frame = stack[stack.top]
+  stack[stack.top] = nil
+  stack.top = stack.top - 1
   return frame
+end
+
+
+local function get_top()
+  return stack[stack.top]
 end
 
 
@@ -69,24 +73,24 @@ function profile.record(a, b, c, d)
     push{ source_file=source_file, func=func, frame_time=0 }
 
   elseif a == "<" then                          -- Return
-    if stack_top <= 1 then
+    if stack.top <= 1 then
       error_count = error_count + 1
-      local top = stack[stack_top]
+      local top = get_top()
       io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
         format(error_count, trace_count, top.source_file.filename, top.line_defined, top.last_line_defined))
     else
       local callee = pop()
-      local top = stack[stack_top]
-      local current_line = top.source_file.lines[top.current_line]
+      local caller = get_top()
+      local current_line = caller.source_file.lines[caller.current_line]
       current_line.child_time = current_line.child_time + callee.frame_time
-      top.frame_time = top.frame_time + callee.frame_time
+      caller.frame_time = caller.frame_time + callee.frame_time
 
       -- Recursive functions are hard - we have to crawl up the stack, and if we
       -- find the function that just returned running higher up the stack,
       -- subtract the callee time from the higher function's child time (because
       -- we're going to add the same time to the higher copy of the function
       -- later and we don't want to add it twice)
-      for j = stack_top, 1, -1 do
+      for j = stack.top, 1, -1 do
         local framej = stack[j]
         if framej.source_file.filename == callee.source_file.filename and framej.line_defined == callee.line_defined then
           local current_line = framej.source_file.lines[framej.current_line]
@@ -100,7 +104,7 @@ function profile.record(a, b, c, d)
     local line, time = a, b
     total_time = total_time + time
 
-    local top = stack[stack_top]
+    local top = get_top()
 
     if top.func.line_defined > 0 and
       (line < top.func.line_defined or line > top.func.last_line_defined) then
