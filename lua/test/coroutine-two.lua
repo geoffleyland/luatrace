@@ -1,4 +1,5 @@
--- Here we only test yielding from the lower in the thread's stack
+-- Here we test yielding from the lower in the thread's stack than in
+-- coroutine-one.lua
 
 luatrace = require("luatrace")
 
