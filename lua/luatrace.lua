@@ -45,10 +45,14 @@ local function set_current_line(l)
     -- if the current line *is* -1 then we're in a series of tail calls,
     -- and we'll throw the accumulated time away - most of it's probably
     -- trace overhead anyway
-    if current_line ~= -1 then
+    if current_line > -1 then
       recorder.record(current_line, accumulated_us)
     end
-    accumulated_us = 0
+    if current_line > -2 then
+      -- If it *is* -2 then were effectively leaving the time for the new
+      -- current_line to pick up
+      accumulated_us = 0
+    end
     current_line = l
   end
 end
@@ -129,6 +133,11 @@ local function record(action, line, time)
       elseif should_trace(caller) then
         -- The caller gets charged for time from here on
         set_current_line(caller.currentline)
+      else
+        -- Otherwise, set the current line to a magic number that means
+        -- "change the time to the next line".  I'm not sure it's right but
+        -- we have to set it to something
+        set_current_line(-2)
       end
       if should_trace(callee) then
         recorder.record("<")
