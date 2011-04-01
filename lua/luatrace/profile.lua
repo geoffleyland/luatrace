@@ -126,11 +126,6 @@ local function get_line(line_number)
 end
 
 
-local function call(filename, line_defined, last_line_defined)
-  push{ source_file=source_file, func=func, frame_time=0 }
-end
-
-
 function profile.record(a, b, c, d)
   trace_count = trace_count + 1
 
