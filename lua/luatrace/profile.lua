@@ -63,6 +63,17 @@ local function get_top()
 end
 
 
+local function get_line(line_number)
+  local top = get_top()
+  local line = top.source_file.lines[line_number]
+  if not line then
+    line = { visits = 0, self_time = 0, child_time = 0 }
+    top.source_file.lines[line_number] = line
+  end
+  return line
+end
+
+
 function profile.record(a, b, c, d)
   trace_count = trace_count + 1
 
@@ -101,29 +112,25 @@ function profile.record(a, b, c, d)
     end
 
   else                                         -- Line
-    local line, time = a, b
+    local line_number, time = a, b
     total_time = total_time + time
 
     local top = get_top()
 
     if top.func.line_defined > 0 and
-      (line < top.func.line_defined or line > top.func.last_line_defined) then
+      (line_number < top.func.line_defined or line_number > top.func.last_line_defined) then
       error_count = error_count + 1
       io.stderr:write(("ERROR (%4d, line %7d): counted execution of %d microseconds at line %d of a function defined at %s:%d-%d\n"):
-        format(error_count, trace_count, time, line, top.source_file.filename, top.func.line_defined, top.func.last_line_defined))
+        format(error_count, trace_count, time, line_number, top.source_file.filename, top.func.line_defined, top.func.last_line_defined))
     end
 
-    local r = top.source_file.lines[line]
-    if not r then
-      r = { visits = 0, self_time = 0, child_time = 0 }
-      top.source_file.lines[line] = r
+    local line = get_line(line_number)
+    if top.current_line ~= line_number then
+      line.visits = line.visits + 1
     end
-    if top.current_line ~= line then
-      r.visits = r.visits + 1
-    end
-    r.self_time = r.self_time + time
+    line.self_time = line.self_time + time
     top.frame_time = top.frame_time + time
-    top.current_line = line
+    top.current_line = line_number
   end
 end
 
