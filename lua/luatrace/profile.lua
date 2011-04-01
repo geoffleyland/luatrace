@@ -55,8 +55,8 @@ function profile.record(a, b, c, d)
 
     if top.line_defined > 0 and
       (line < top.line_defined or line > top.last_line_defined) then
-      io.stderr:write(("ERROR: counted execution of line %d in a function defined at %s:%d-%d\n"):
-        format(line, top.file.filename, top.line_defined, top.last_line_defined))
+      io.stderr:write(("ERROR: counted execution of %d microseconds at line %d of a function defined at %s:%d-%d\n"):
+        format(time, line, top.file.filename, top.line_defined, top.last_line_defined))
     end
 
     local r = top.file.lines[line]
