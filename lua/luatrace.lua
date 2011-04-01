@@ -117,6 +117,11 @@ local function record(action, line, time)
         elseif callee.name == "error" then
           set_current_line(-1)
           recorder.record("E")
+        elseif callee.name == "resume" then
+          set_current_line(-1)
+          recorder.record("P")                  -- resume is protected
+          -- Watch the current thread and catch it if it changes.
+          watch_thread = coroutine.running() or "main"          
         else                                    -- this might be a resume!
           -- Because of coroutine.wrap, any c function could resume a different
           -- thread.  Watch the current thread and catch it if it changes.
