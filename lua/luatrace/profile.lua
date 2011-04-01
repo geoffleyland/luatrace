@@ -132,24 +132,33 @@ local function get_line(line_number)
 end
 
 
-local function play_return(callee, caller)
-  local current_line = caller.source_file.lines[caller.current_line]
-  current_line.child_time = current_line.child_time + callee.frame_time
-  caller.frame_time = caller.frame_time + callee.frame_time
+local function clear_frame_time(caller, time, callee_source_file, callee_line_number, offset)
+  -- Counting frame time for recursive functions is tricky.
+  -- We have to crawl up the stack, and if we find the function or line that
+  -- generated the frame time running higher up the stack, we have to subtract
+  -- the callee time from the higher function's child time (because we're going
+  -- to add the same time to the higher copy of the function later and we don't
+  -- want to add it twice)
+--  caller.frame_time = caller.frame_time + time
 
-  -- Recursive functions are hard - we have to crawl up the stack, and if we
-  -- find the function that just returned running higher up the stack,
-  -- subtract the callee time from the higher function's child time (because
-  -- we're going to add the same time to the higher copy of the function
-  -- later and we don't want to add it twice)
-  for j = stack.top, 1, -1 do
+  for j = stack.top - offset, 1, -1 do
     local framej = stack[j]
-    if framej.source_file.filename == callee.source_file.filename and framej.func.line_defined == callee.func.line_defined then
+    if framej.source_file == callee_source_file and framej.func.line_defined == callee_line_number then
       local current_line = framej.source_file.lines[framej.current_line]
-      current_line.child_time = current_line.child_time - callee.frame_time
+      current_line.child_time = current_line.child_time - time
       break
     end
   end
+end
+
+
+local function play_return(callee, caller)
+  local current_line = caller.source_file.lines[caller.current_line]
+  current_line.child_time = current_line.child_time + callee.frame_time
+
+  caller.frame_time = caller.frame_time + callee.frame_time
+  clear_frame_time(caller, callee.frame_time, callee.source_file, callee.func.line_defined, 0)
+  clear_frame_time(caller, callee.frame_time, caller.source_file, caller.current_line, 1)
 end
 
 
@@ -229,6 +238,7 @@ function profile.record(a, b, c, d)
     end
     line.self_time = line.self_time + time
     top.frame_time = top.frame_time + time
+    clear_frame_time(top, time, top.source_file, line_number, 1)
     top.current_line = line_number
   end
 end
