@@ -160,7 +160,7 @@ function profile.record(a, b, c, d)
       -- later and we don't want to add it twice)
       for j = stack.top, 1, -1 do
         local framej = stack[j]
-        if framej.source_file.filename == callee.source_file.filename and framej.line_defined == callee.line_defined then
+        if framej.source_file.filename == callee.source_file.filename and framej.func.line_defined == callee.func.line_defined then
           local current_line = framej.source_file.lines[framej.current_line]
           current_line.child_time = current_line.child_time - callee.frame_time
           break
