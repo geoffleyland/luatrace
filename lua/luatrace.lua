@@ -56,14 +56,32 @@ end
 
 local CALLEE_INDEX, CALLER_INDEX
 
+local watch_thread
+
 -- Record an action reported to the hook.
 local function record(action, line, time)
   accumulated_us = accumulated_us + time
 
+  if watch_thread then
+    if action == "call" then
+      -- Whether the thread changed (and this is the *first* resume on the thread)
+      -- or the thread was dead, and we're still in the same thread doesn't matter
+      -- we're going to do what we want - report a call.
+      watch_thread = nil
+    elseif action == "line" then
+      if watch_thread ~= (coroutine.running() or 1) then
+        -- This was a resume into a running thread.  We make it look like a call
+        local current = debug.getinfo(CALLEE_INDEX, "Sl")
+        recorder.record(">", current.short_src, current.linedefined, current.lastlinedefined)
+      end
+      watch_thread = nil
+    end
+  end
+
   if action == "line" then
     set_current_line(line)
   elseif action == "call" or action == "return" then
-    local callee = debug.getinfo(CALLEE_INDEX, "Sl")
+    local callee = debug.getinfo(CALLEE_INDEX, "Sln")
     local caller = debug.getinfo(CALLER_INDEX, "Sl")
     
     if action == "call" then
@@ -73,6 +91,17 @@ local function record(action, line, time)
       if should_trace(callee) then
         set_current_line(callee.currentline)
         recorder.record(">", callee.short_src, callee.linedefined, callee.lastlinedefined)
+      elseif callee and callee.source == "=[C]" then
+        if callee.name == "yield" then
+          -- Treat it like a return, but we don't know where we're headed yet
+          -- some time is lost (if yield gets renamed, all bets are off)
+          set_current_line(-1)
+          recorder.record("<")
+        else
+          -- Because of coroutine.wrap, any c function could resume a different
+          -- thread.  Watch the current thread and catch it if it changes.
+          watch_thread = coroutine.running() or 1
+        end
       end
     else
       if should_trace(callee) then
@@ -80,9 +109,10 @@ local function record(action, line, time)
       end
       if should_trace(caller) then
         set_current_line(caller.currentline)
-      elseif caller and caller.source == "=(tail call)" then
-        -- we're about to get tail-returned, there's no point recording time
-        -- until we're finished with that
+      elseif not caller                         -- final return from a coroutine
+        or caller.source == "=(tail call)" then -- about to get tail-returned
+        -- In both cases, there's no point recording time until we're
+        -- back on our feet
         set_current_line(-1)
       end
       if should_trace(callee) then
