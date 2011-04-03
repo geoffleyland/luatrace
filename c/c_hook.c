@@ -50,7 +50,7 @@ void hook(lua_State *L, lua_Debug *ar)
   lua_pushstring(L, hooknames[event]);
 
   if (event == LUA_HOOKLINE)
-    lua_pushnumber(L, ar->currentline);
+    lua_pushinteger(L, ar->currentline);
   else
     lua_pushnil(L);
 
