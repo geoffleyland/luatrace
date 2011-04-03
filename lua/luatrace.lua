@@ -243,7 +243,7 @@ local luatrace_raw_exit = os.exit
 
 local function luatrace_on_exit()
   recorder.close()
-  os.remove(luatrace_exit_trick_file)
+  os.remove(luatrace_exit_trick_file_name)
 end
 
 
