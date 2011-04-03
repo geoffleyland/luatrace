@@ -7,7 +7,7 @@ function c(f)
 end
 
 function a()
-  c(function b() print("wait") end)
+  c(function() print("wait") end)
 end
 
 luatrace.tron()
