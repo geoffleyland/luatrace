@@ -41,7 +41,7 @@ static hook_time_t time_out, elapsed;
 
 void hook(lua_State *L, lua_Debug *ar)
 {
-  hook_time_t time_in = clock();
+  hook_time_t time_in = CLOCK_FUNCTION();
   elapsed += time_in - time_out;
 
   int event = ar->event;
@@ -58,7 +58,7 @@ void hook(lua_State *L, lua_Debug *ar)
   lua_call(L, 3, 0);
 
   elapsed = 0;
-  time_out = clock();
+  time_out = CLOCK_FUNCTION();
 }
 
 
@@ -76,12 +76,12 @@ static int set_hook(lua_State *L)
   else
   {
     get_microseconds_info();
-    
+
     luaL_checktype(L, 1, LUA_TFUNCTION);
     hook_index = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_sethook(L, hook, LUA_MASKCALL | LUA_MASKRET | LUA_MASKLINE, 0);
     elapsed = 0;
-    time_out = clock();
+    time_out = CLOCK_FUNCTION();
   }
   return 0;
 }
