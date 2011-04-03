@@ -180,7 +180,7 @@ function profile.record(a, b, c, d)
       error_count = error_count + 1
       local top = get_top()
       io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
-        format(error_count, trace_count, top.source_file.filename, top.line_defined, top.last_line_defined))
+        format(error_count, trace_count, top.source_file.filename, top.line_defined or 0, top.last_line_defined or 0))
     else
       local callee = pop()
       local caller = get_top()
@@ -198,15 +198,22 @@ function profile.record(a, b, c, d)
     push_thread(thread)
 
   elseif a == "Y" then                         -- Yield
-    local thread = thread_top()
-    -- unwind the thread from the stack
-    for i = thread.top, 1, -1 do
-      local callee = replay_pop()
-      local caller = get_top() 
-      thread[i].current_line = callee.current_line
-      play_return(callee, caller)
+    if thread_stack.top <= 1 then
+      error_count = error_count + 1
+      local top = get_top()
+      io.stderr:write(("ERROR (%4d, line %7d): tried to yield to unknown thread from function defined at %s:%d-%d\n"):
+        format(error_count, trace_count, top.source_file.filename, top.line_defined or 0, top.last_line_defined or 0))
+    else
+      local thread = thread_top()
+      -- unwind the thread from the stack
+      for i = thread.top, 1, -1 do
+        local callee = replay_pop()
+        local caller = get_top()
+        thread[i].current_line = callee.current_line
+        play_return(callee, caller)
+      end
+      pop_thread()
     end
-    pop_thread()
 
   elseif a == "P" then                         -- pcall
     get_top().protected = true
