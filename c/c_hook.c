@@ -1,8 +1,15 @@
 #include "lauxlib.h"
 
+#ifdef __MACH__
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+typedef uint64_t hook_time_t;
+#define CLOCK_FUNCTION mach_absolute_time
+#else
 #include <time.h>
 typedef clock_t hook_time_t;
 #define CLOCK_FUNCTION clock
+#endif
 
 
 /*============================================================================*/
@@ -11,6 +18,15 @@ static unsigned long microseconds_numerator;
 static lua_Number microseconds_denominator;
 
 
+#ifdef __MACH__
+static void get_microseconds_info(void)
+{
+  mach_timebase_info_data_t timebase_info;
+  mach_timebase_info(&timebase_info);
+  microseconds_numerator = timebase_info.numer;
+  microseconds_denominator = (lua_Number)(timebase_info.denom * 1000);
+}
+#else
 static void get_microseconds_info(void)
 {
   if (CLOCKS_PER_SEC < 1000000)
@@ -24,6 +40,7 @@ static void get_microseconds_info(void)
     microseconds_denominator = CLOCKS_PER_SEC / 1000000;
   }
 }
+#endif
 
 
 static lua_Number convert_to_fp_microseconds(hook_time_t t)

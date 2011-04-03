@@ -43,7 +43,7 @@ local function write_trace(a, b, c, d)
   elseif type(a) == "string" then               -- It's one of <, Y, P or E
     file:write(a, "\n")
   else
-    file:write(tonumber(a), " ", ("%d"):format(tonumber(b)), "\n")
+    file:write(tonumber(a), " ", ("%g"):format(tonumber(b)), "\n")
   end
 end
 
@@ -121,7 +121,7 @@ function trace_file.read(settings)
     elseif l1:match("[<YPE]") then
       recorder.record(l1)
     else
-      local line, time = l:match("(%d+) (%d+)")
+      local line, time = l:match("(%d+) (%d+\.*%d*)")
       recorder.record(tonumber(line), tonumber(time))
     end
   end
