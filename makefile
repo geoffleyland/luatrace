@@ -6,7 +6,7 @@ LUA_LIBDIR=$(LUA_PREFIX)/lib/lua/5.1
 LUA_INCDIR=$(LUA_PREFIX)/include
 
 CC=cc
-CFLAGS=-O3 -fPIC
+CFLAGS=-O3 -fPIC -wall
 
 # Guess a platform
 UNAME=$(shell uname -s)
