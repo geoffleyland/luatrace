@@ -2,16 +2,18 @@
 
 #include <time.h>
 typedef clock_t hook_time_t;
+#define CLOCK_FUNCTION clock
 
 
 /*============================================================================*/
 
-static hook_time_t microseconds_numerator, microseconds_denominator;
+static unsigned long microseconds_numerator;
+static lua_Number microseconds_denominator;
 
 
 static void get_microseconds_info(void)
 {
- if (CLOCKS_PER_SEC < 1000000)
+  if (CLOCKS_PER_SEC < 1000000)
   {
     microseconds_numerator = 1000000 / CLOCKS_PER_SEC;
     microseconds_denominator = 1;
@@ -26,7 +28,7 @@ static void get_microseconds_info(void)
 
 static lua_Number convert_to_fp_microseconds(hook_time_t t)
 {
-  return (lua_Number)((microseconds_numerator * t) / microseconds_denominator);
+  return ((lua_Number)(microseconds_numerator * t)) / microseconds_denominator;
 }
 
 
