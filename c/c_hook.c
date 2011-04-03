@@ -81,6 +81,7 @@ static int set_hook(lua_State *L)
     elapsed = 0;
     time_out = clock();
   }
+  return 0;
 }
 
 /*============================================================================*/
