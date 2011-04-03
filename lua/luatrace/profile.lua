@@ -2,6 +2,7 @@ local trace_file = require("luatrace.trace_file")
 
 local source_files                              -- Map of source files we've seen
 local functions                                 -- Map of functions
+local lines                                     -- Map of lines
 
 local threads                                   -- All the running threads
 local thread_stack                              -- and the order they're running in
@@ -19,7 +20,7 @@ local profile = {}
 --------------------------------------------------------------------------------
 
 function profile.open()
-  source_files, functions = {}, {}
+  source_files, functions, lines = {}, {}, {}
   local main_thread = { top=0 }
   threads = { main_thread }
   thread_stack = { main_thread, top=1 }
@@ -28,6 +29,8 @@ function profile.open()
   trace_count, error_count = 0, 0
 end
 
+
+-- Recording -------------------------------------------------------------------
 
 local function get_source_file(filename)
   local source_file = source_files[filename]
@@ -125,8 +128,9 @@ local function get_line(line_number)
   local top = get_top()
   local line = top.source_file.lines[line_number]
   if not line then
-    line = { visits = 0, self_time = 0, child_time = 0 }
+    line = { file=top.source_file, line_number=line_number, visits=0, self_time=0, child_time=0 }
     top.source_file.lines[line_number] = line
+    lines[#lines+1] = line
   end
   return line
 end
@@ -244,104 +248,117 @@ function profile.record(a, b, c, d)
 end
 
 
+-- Generating reports ----------------------------------------------------------
+
 function profile.close()
   local all_lines = {}
 
-  -- collect all the lines
-  local max_visits = 0
-  for _, f in pairs(source_files) do
-    for i, l in pairs(f.lines) do
-      all_lines[#all_lines + 1] = { filename=f.filename, line_number=i, line=l }
-      max_visits = math.max(max_visits, l.visits)
-    end
+  -- Work out the "most" of some numbers, so we can format reports better
+  local max_time, max_visits, max_line_number = 0, 0, 0
+  for _, l in ipairs(lines) do
+    max_time = math.max(max_time, l.self_time + l.child_time)
+    max_visits = math.max(max_visits, l.visits)
+    max_line_number = math.max(max_line_number, l.line_number)
   end
-  table.sort(all_lines, function(a, b) return a.line.self_time + a.line.child_time > b.line.self_time + b.line.child_time end)
-  local max_time = all_lines[1].line.self_time + all_lines[1].line.child_time
-  
-  local divisor, time_units
-  if max_time < 10000 then
+
+  local divisor, time_units, time_format
+  if max_time < 10 then
+    divisor = 0.001
+    time_units = "nanoseconds"
+    time_format = "d"
+  elseif max_time < 10000 then
     divisor = 1
     time_units = "microseconds"
+    time_format = ".2f"
   elseif max_time < 10000000 then
     divisor = 1000
     time_units = "milliseconds"
+    time_format = ".2f"
   else
-    io.stderr:write("Times in seconds\n")
     divisor = 1000000
     time_units = "seconds"
+    time_format = ".2f"
   end
-  
+  local function number_format(title, fmt, max_value)
+    local f1 = "%"..fmt
+    local max_len = f1:format(max_value):len()
+    max_len = math.max(title:len(), max_len)
+    local number_format = ("%%%d"..fmt):format(max_len)
+    local string_format = ("%%%ds"):format(max_len)
+    return number_format, string_format
+  end
+
+  local time_nformat, time_sformat = number_format("Child", time_format, max_time / divisor)
+  local visit_nformat, visit_sformat = number_format("Visits", "d", max_visits)
+  local line_number_nformat, line_number_sformat = number_format("line", "d", max_line_number)
+
+  -- Read all the source files, and sort them into alphabetical order
+  local max_line_length = 0
+  local sorted_source_files = {}
+  for _, f in pairs(source_files) do
+    if not f.filename:match("luatrace") then
+      local s = io.open(f.filename, "r")
+      if s then
+        sorted_source_files[#sorted_source_files+1] = f
+        local i = 1
+        for l in s:lines() do
+          max_line_length = math.max(max_line_length, l:len())
+          if f.lines[i] then
+            f.lines[i].text = l
+          else
+            f.lines[i] = { text=l, file=f, line_number=i }
+          end
+          i = i + 1
+        end
+      end
+      s:close()
+    end
+  end
+  table.sort(sorted_source_files, function(a, b) return a.filename < b.filename end)
 
   -- Write annotated source
-  local visit_format = ("%%%dd"):format(("%d"):format(max_visits):len())
-  local line_format = " "..visit_format.."%12.2f%12.2f%12.2f%5d | %-s\n"
+  local header_format = visit_sformat.." "..time_sformat.." "..time_sformat.." "..time_sformat.." "..line_number_sformat.." | "
+  local header = header_format:format("Visits", "Total", "Self", "Child", "Line")
+  local line_format = visit_nformat.." "..time_nformat.." "..time_nformat.." "..time_nformat.." "..line_number_nformat.." | %s\n"
   local asf = io.open("annotated-source.txt", "w")
-  for _, f in pairs(source_files) do
-    local s = io.open(f.filename, "r")
-    if s then
-      asf:write("\n")
-      asf:write("====================================================================================================\n")
-      asf:write(f.filename, "  ", "Times in ", time_units, "\n\n")
-      local i = 1
-      for l in s:lines() do
-        local rec = f.lines[i]
-        if rec then
-          asf:write(line_format:format(rec.visits, (rec.self_time+rec.child_time) / divisor, rec.self_time / divisor, rec.child_time / divisor, i, l))
-        else
-          asf:write(line_format:format(0, 0, 0, 0, i, l))
-        end
-        i = i + 1
+  for _, f in ipairs(sorted_source_files) do
+    asf:write(("="):rep(header:len() + max_line_length), "\n")
+    asf:write(header, f.filename, " - Times in ", time_units, "\n")
+    asf:write(("-"):rep(header:len() + max_line_length), "\n")
+    for i, l in ipairs(f.lines) do
+      if l.visits then
+        asf:write(line_format:format(l.visits, (l.self_time+l.child_time) / divisor, l.self_time / divisor, l.child_time / divisor, i, l.text))
+      else
+        asf:write(header_format:format(".", ".", ".", ".", tonumber(l.line_number)), l.text, "\n")
       end
     end
-    s:close()
+    asf:write("\n")
   end
   asf:close()
 
-  local title_len = 0
-  local file_lines = {}
-  for i = 1, math.min(20, #all_lines) do
-    local l = all_lines[i]
+  -- Report on the lines using the most time
+  table.sort(lines, function(a, b) return a.self_time + a.child_time > b.self_time + b.child_time end)
 
-    l.title = ("%s:%d"):format(l.filename, l.line_number)
+  local title_len = 9
+  for i = 1, math.min(20, #lines) do
+    local l = lines[i]
+    l.title = ("%s:%d"):format(l.file.filename, l.line_number)
     title_len = math.max(title_len, l.title:len())
-    
-    -- Record the lines of the files we want to see
-    local fl = file_lines[l.filename]
-    if not fl then
-      fl = {}
-      file_lines[l.filename] = fl
-    end
-    fl[l.line_number] = i
   end
+  local title_format = ("%%-%ds"):format(title_len)
 
-  -- Find the text of the lines
-  for file_name, line_numbers in pairs(file_lines) do
-    local f = io.open(file_name, "r")
-    if f then
-      local i = 1
-      for l in f:lines() do
-        local j = line_numbers[i]
-        if j then
-          all_lines[j].line_text = l
-        end
-        i = i + 1
-      end
-    end
-    f:close()
-  end
-
+  io.stderr:write(("Total time "..time_nformat.." %s\n"):format(total_time / divisor, time_units))
   io.stderr:write("Times in ", time_units, "\n")
-  io.stderr:write(("Total time %.2f\n"):format(total_time / divisor))
 
-  header_format = ("%%-%ds%%8s%%12s%%12s%%12s  Line\n"):format(title_len+2)
-  line_format = ("%%-%ds%%8d%%12.2f%%12.2f%%12.2f  %%-s\n"):format(title_len+2)
-  io.stderr:write(header_format:format("File:line", "Visits", "Total", "Self", "Children"))
+  header_format = title_format.."  "..visit_sformat.."  "..time_sformat.."  "..time_sformat.."  "..time_sformat.. " | Line\n"
+  io.stderr:write(header_format:format("File:line", "Visits", "Total", "Self", "Child"))
+  line_format = title_format.."  "..visit_nformat.."  "..time_nformat.."  "..time_nformat.."  "..time_nformat.. " | %s\n"
 
-  for i = 1, math.min(20, #all_lines) do
-    local l = all_lines[i]
-    io.stderr:write(line_format:format(l.title, l.line.visits,
-      (l.line.self_time + l.line.child_time) / divisor, l.line.self_time/divisor, l.line.child_time/divisor,
-      l.line_text or "-"))
+  for i = 1, math.min(20, #lines) do
+    local l = lines[i]
+    io.stderr:write(line_format:format(l.title, l.visits,
+      (l.self_time + l.child_time) / divisor, l.self_time/divisor, l.child_time/divisor,
+      l.text or "-"))
   end
 end
 
