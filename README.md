@@ -3,11 +3,18 @@
 ## 1. What?
 
 luatrace adds a layer on top of Lua's debug hooks to make it easier to collect
-information for profiling and coverage.
-It collects traces of every line executed, and can then analyse those traces to
-provide time profiles and coverage reports (not yet implemented).
+information for profiling and coverage analysis.
 
-To use it run you code with `lua -luatrace <your lua file>` and then analyse it with `luaprofile`
+It collects a trace of every line executed, and can then analyse the trace to
+provide time profile and coverage reports.
+
+luatrace can trace through coroutine resumes and yields, and through xpcalls,
+pcalls and errors.
+On some platforms (OS X only) it uses high resolution timers to collect
+times in the order of nanoseconds.
+
+To use it run you code with `lua -luatrace <your lua file>` and then analyse it
+with `luaprofile`
 
 luatrace is brought to you by [Incremental](http://www.incremental.co.nz/) (<info@incremental.co.nz>)
 and is available under the [MIT Licence](http://www.opensource.org/licenses/mit-license.php).
@@ -24,9 +31,13 @@ little bit of processing to make the traces easier to use.
 Timing is provided one of three ways:
 
 + Lua - with a debug hook calling `os.clock`
-+ LuaJIT - with a debug hook calling `ffi.C.clock` - `os.clock` is not yet implemented as a fast function
-+ Lua - if c_hook has been built then that's used instead of the Lua hook.
-  The hook should be able to call `clock` closer to actual code execution, so the traces should be more accurate.
++ LuaJIT - with a debug hook calling `ffi.C.clock` - `os.clock` is not yet
+  implemented as a fast function
++ Lua - if the c_hook has been built then that's used instead of the Lua hook.
+  The C uses the C library's `clock` and should call it closer to actual code
+  execution, so the traces should be more accurate.
+  On mach plaforms (ie OS X), the c_hook uses the `mach_absolute_time` high
+  resolution timer for nanosecond resolution (but not accuracy)
 
 The collector outputs traces by calling a recorder's `record` function.
 This can be called in one of four ways, with up to 3 arguments:
@@ -54,10 +65,11 @@ Lua or LuaJIT.
 
 ## 4. Issues
 
++ It's really slow
++ It doesn't work with LuaJIT yet because I haven't worked out how to handle tail calls with LuaJIT
 + Times probably aren't accurate because of the time spent getting between user code and the hooks
-+ The profile back end seems to get numbers wrong - it told me a blank line took was executed several hundred times and took 0.02 of a second
-+ Tail calls and coroutines will cause chaos
 + There aren't many back-ends
++ I haven't done any work on the timing errors (ie how much "hook time" is recorded as execution time)
 
 
 ## 5. Alternatives
