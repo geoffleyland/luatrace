@@ -176,7 +176,7 @@ function profile.record(a, b, c, d)
     push{ source_file=source_file, func=func, frame_time=0 }
 
   elseif a == "<" then                          -- Return
-    if stack.top <= 1 then
+    if stack.top <= 0 then
       error_count = error_count + 1
       local top = get_top()
       io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
@@ -184,8 +184,10 @@ function profile.record(a, b, c, d)
     else
       local callee = pop()
       local caller = get_top()
-      caller.protected = false
-      play_return(callee, caller)
+      if caller then
+        caller.protected = false
+        play_return(callee, caller)
+      end
     end
 
   elseif a == "R" then                         -- Resume
@@ -198,7 +200,7 @@ function profile.record(a, b, c, d)
     push_thread(thread)
 
   elseif a == "Y" then                         -- Yield
-    if thread_stack.top <= 1 then
+    if thread_stack.top <= 0 then
       error_count = error_count + 1
       local top = get_top()
       io.stderr:write(("ERROR (%4d, line %7d): tried to yield to unknown thread from function defined at %s:%d-%d\n"):

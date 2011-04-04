@@ -196,10 +196,29 @@ end
 local start_short_src, start_line
 
 local function init_trace(line)
-  local caller = debug.getinfo(3, "S")
-  recorder.record("S", caller.short_src, caller.linedefined, caller.lastlinedefined)
-  current_line, accumulated_us = line, 0
+
+  -- Try to record the stack so far
+  local depth = 2
+  while true do
+    depth = depth + 1
+    local frame = debug.getinfo(depth, "S")
+    if not frame then break end
+  end
+  for i = depth-1, 3, -1 do
+--    record("call", nil, 0)
+--    local caller = debug.getinfo(i, "S")
+--    recorder.record(">", caller.short_src, caller.linedefined, caller.lastlinedefined)
+    local frame = debug.getinfo(i, "Sln")
+--    set_current_line(frame.currentline or -1)
+    if should_trace(frame) then
+      recorder.record(">", frame.short_src, frame.linedefined, frame.lastlinedefined)
+    end
+  end
+
+  -- Record the current thread
   thread_map, thread_count = { [coroutine.running() or "main"] = 1 }, 1
+
+  current_line, accumulated_us = line, 0
 end
 
 local function hook_lua_start(action, line)
