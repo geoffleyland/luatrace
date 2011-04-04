@@ -39,12 +39,16 @@ Timing is provided one of three ways:
   On mach plaforms (ie OS X), the c_hook uses the `mach_absolute_time` high
   resolution timer for nanosecond resolution (but not accuracy)
 
-The collector outputs traces by calling a recorder's `record` function.
-This can be called in one of four ways, with up to 3 arguments:
+The collector outputs traces by calling a recorder's `record` function with a
+range of arguments:
 
 + `("S", <filename>, <line>)` - the trace has started somewhere in a function defined on line
 + `(">", <filename>, <line>)` - there's been a call to a function defined on line
-+ `("<", <filename>, <line>)` - return from a function
++ `("<")` - return from a function
++ `("R", <thread_id>)` - Resume the thread thread_id
++ `("Y")` - Yield
++ `("P")` - pcall - the current line is protected for the duration of the following call
++ `("E")` - Error - unwind the stack looking for a "P"
 + `(<line>, <time in microseconds>)` - this many microseconds were just spent on this line of the current file
 
 At the moment, there's two recorders - `luatrace.trace_file` and `luatrace.profile`.
