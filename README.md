@@ -14,7 +14,15 @@ On some platforms (OS X only) it uses high resolution timers to collect
 times in the order of nanoseconds.
 
 To use it run you code with `lua -luatrace <your lua file>` and then analyse it
-with `luaprofile`
+with `luatrace.profile`.  The profiler will display a list of the top 20 functions
+by time, and write a copy of all the source traced annotated with times for each
+line.
+
+Alteratively, you can `local luatrace = require("luatrace")` and surround the code
+you wish to trace with `luatrace.tron()` and `luatrace.troff()`.
+
+If you wish to use the profiler directly rather than on a trace file you can use
+`lua -luatrace.profile <your lua file>` or `local luatrace = require("luatrace.profile")`.
 
 luatrace is brought to you by [Incremental](http://www.incremental.co.nz/) (<info@incremental.co.nz>)
 and is available under the [MIT Licence](http://www.opensource.org/licenses/mit-license.php).

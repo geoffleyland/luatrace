@@ -28,22 +28,27 @@ lua/luatrace/c_hook.$(SO_SUFFIX): c/c_hook.c
 
 install: lua/luatrace/c_hook.$(SO_SUFFIX)
 	mkdir -p $(LUA_SHAREDIR)/luatrace
+	mkdir -p $(LUA_SHAREDIR)/uatrace
 	mkdir -p $(LUA_LIBDIR)/luatrace
 	cp lua/luatrace.lua $(LUA_SHAREDIR)
 	cp lua/uatrace.lua $(LUA_SHAREDIR)
 	cp lua/luatrace/*.lua $(LUA_SHAREDIR)/luatrace
+	cp lua/uatrace/*.lua $(LUA_SHAREDIR)/uatrace
 	-cp lua/luatrace/c_hook.so $(LUA_LIBDIR)/luatrace
-	cp sh/luaprofile $(LUA_BINDIR)
-	chmod +x $(LUA_BINDIR)/luaprofile
+	cp sh/luatrace.profile $(LUA_BINDIR)
+	chmod +x $(LUA_BINDIR)/luatrace.profile
 
 uninstall: 
 	rm -f $(LUA_SHAREDIR)/luatrace.lua
 	rm -f $(LUA_SHAREDIR)/uatrace.lua
 	rm -rf $(LUA_SHAREDIR)/luatrace
-	-rm rf $(LUA_LIBDIR)/luatrace
+	rm -rf $(LUA_SHAREDIR)/uatrace
+	-rm -rf $(LUA_LIBDIR)/luatrace
 	rm -f $(LUA_BINDIR)/luaprofile
+	rm -f $(LUA_BINDIR)/luatrace.profile
 
 clean:
 	rm -f lua/luatrace/c_hook.so
 	find . -name "trace-out.txt" -delete
+	find . -name "annotated-source.txt" -delete
 

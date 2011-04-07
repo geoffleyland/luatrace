@@ -261,7 +261,9 @@ local luatrace_raw_exit = os.exit
 
 
 local function luatrace_on_exit()
-  recorder.close()
+  if recorder then
+    recorder.close()
+  end
   os.remove(luatrace_exit_trick_file_name)
 end
 
@@ -305,6 +307,7 @@ end
 function luatrace.troff()
   debug.sethook()
   recorder.close()
+  recorder = nil
   os.remove(luatrace_exit_trick_file_name)
   os.exit = luatrace_raw_exit
 end

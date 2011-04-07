@@ -372,9 +372,22 @@ function profile.close()
 end
 
 
+-- Stopping and starting -------------------------------------------------------
+
 function profile.go()
   trace_file.read{ recorder=profile }
 end
+
+
+local luatrace = require("luatrace")
+
+function profile.tron(settings)
+  settings = settings or {}
+  settings.recorder = profile
+  return luatrace.tron(settings)
+end
+
+profile.troff = luatrace.troff
 
 
 -- Main ------------------------------------------------------------------------
