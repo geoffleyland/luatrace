@@ -61,9 +61,9 @@ void hook(lua_State *L, lua_Debug *ar)
   hook_time_t time_in = CLOCK_FUNCTION();
   elapsed += time_in - time_out;
 
-  int event = ar->event;
   lua_rawgeti(L, LUA_REGISTRYINDEX, hook_index);
 
+  int event = ar->event;
   lua_pushstring(L, hooknames[event]);
 
   if (event == LUA_HOOKLINE)
