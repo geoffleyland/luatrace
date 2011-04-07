@@ -37,20 +37,16 @@ local watch_thread                      -- The thread we're trying to spot chang
 
 local CALLEE_INDEX, CALLER_INDEX        -- The indexes used for getinfo depend on the hook we're using
 
+local ACCUMULATE_TO_NEXT = -1
 
 -- Emit a trace if the current line has changed
 -- and reset the current line and accumulated time
 local function set_current_line(l)
   if l ~= current_line then
-    -- if the current line *is* -1 then we're in a series of tail calls,
-    -- and we'll throw the accumulated time away - most of it's probably
-    -- trace overhead anyway
-    if current_line > -1 then
+    -- If current_line is ACCUMULATE_TO_NEXT then leave the time for the new
+    -- current_line to pick up
+    if current_line ~= ACCUMULATE_TO_NEXT and accumulated_us > 0 then
       recorder.record(current_line, accumulated_us)
-    end
-    if current_line > -2 then
-      -- If it *is* -2 then were effectively leaving the time for the new
-      -- current_line to pick up
       accumulated_us = 0
     end
     current_line = l
@@ -80,7 +76,7 @@ local function record(action, line, time)
           thread_id = thread_count
         end
         -- Flush any time remaining on the caller
-        set_current_line(-1)
+        set_current_line(ACCUMULATE_TO_NEXT)
         -- Record a resume
         recorder.record("R", thread_id)
       end
@@ -107,18 +103,18 @@ local function record(action, line, time)
       end
       if callee and callee.source == "=[C]" then
         if callee.name == "yield" then
-          -- We don't know where we're headed yet so some time is lost (and if
-          -- yield gets renamed, all bets are off)
-          set_current_line(-1)
+          -- We don't know where we're headed yet (if yield gets renamed, all\
+          -- bets are off)
+          set_current_line(ACCUMULATE_TO_NEXT)
           recorder.record("Y")
         elseif callee.name == "pcall" or callee.name == "xpcall" then
-          set_current_line(-1)
+          set_current_line(ACCUMULATE_TO_NEXT)
           recorder.record("P")
         elseif callee.name == "error" then
-          set_current_line(-1)
+          set_current_line(ACCUMULATE_TO_NEXT)
           recorder.record("E")
         elseif callee.name == "resume" then
-          set_current_line(-1)
+          set_current_line(ACCUMULATE_TO_NEXT)
           recorder.record("P")                  -- resume is protected
           -- Watch the current thread and catch it if it changes.
           watch_thread = coroutine.running() or "main"          
@@ -138,7 +134,7 @@ local function record(action, line, time)
         or caller.source == "=(tail call)" then -- about to get tail-returned
         -- In both cases, there's no point recording time until we're
         -- back on our feet
-        set_current_line(-1)
+        set_current_line(ACCUMULATE_TO_NEXT)
       elseif watch_thread and callee and callee.source == "=[C]" and callee.name == "yield" then
         -- Don't trace returns from yields, even into traceable functions.
         -- We'll catch them later with watch_thread
@@ -146,10 +142,9 @@ local function record(action, line, time)
         -- The caller gets charged for time from here on
         set_current_line(caller.currentline)
       else
-        -- Otherwise, set the current line to a magic number that means
-        -- "change the time to the next line".  I'm not sure it's right but
-        -- we have to set it to something
-        set_current_line(-2)
+        -- Otherwise charge the time to the next line.  I'm not sure it's right
+        -- but we have to set it to something
+        set_current_line(ACCUMULATE_TO_NEXT)
       end
       if should_trace(callee) then
         recorder.record("<")
