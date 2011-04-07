@@ -205,11 +205,7 @@ local function init_trace(line)
     if not frame then break end
   end
   for i = depth-1, 3, -1 do
---    record("call", nil, 0)
---    local caller = debug.getinfo(i, "S")
---    recorder.record(">", caller.short_src, caller.linedefined, caller.lastlinedefined)
     local frame = debug.getinfo(i, "Sln")
---    set_current_line(frame.currentline or -1)
     if should_trace(frame) then
       recorder.record(">", frame.short_src, frame.linedefined, frame.lastlinedefined)
     end
