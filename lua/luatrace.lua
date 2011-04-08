@@ -25,6 +25,34 @@ do
 end
 
 
+-- Stack counting --------------------------------------------------------------
+
+local stack_depth                       -- How deep we think the stack is when we're in the hook
+
+local function count_stack(start_depth)
+  start_depth = (start_depth and (start_depth+1)) or 3
+                                        -- the caller of the hook that called this
+  for i = start_depth, 65536 do
+    if not debug.getinfo(i, "l") then
+      stack_depth = i - 2               -- The depth to the caller
+      assert(debug.getinfo(stack_depth+1, "l"))
+      assert(not debug.getinfo(stack_depth + 2, "l"))
+      return
+    end
+  end
+end
+
+
+local function was_that_a_tailcall()
+  if debug.getinfo(stack_depth+2) then
+    stack_depth = stack_depth + 1
+    return false
+  else
+    return true
+  end
+end
+
+
 -- Trace recording -------------------------------------------------------------
 
 local recorder                          -- The thing that's recording traces
@@ -85,6 +113,7 @@ local function record(action, line, time)
   end
 
   if action == "line" then
+    count_stack()
     set_current_line(line)
 
   elseif action == "call" or action == "return" then
@@ -92,6 +121,7 @@ local function record(action, line, time)
     local caller = debug.getinfo(CALLER_INDEX, "Sl")
     
     if action == "call" then
+      local c = was_that_a_tailcall() and "T" or ">"
       if should_trace(caller) then
         -- square up the caller's time to the last line executed
         set_current_line(caller.currentline)
@@ -99,11 +129,11 @@ local function record(action, line, time)
       if should_trace(callee) then
         -- start charging the callee for time, and record where we're going
         set_current_line(callee.currentline)
-        recorder.record(">", callee.short_src, callee.linedefined, callee.lastlinedefined)
+        recorder.record(c, callee.short_src, callee.linedefined, callee.lastlinedefined)
       end
       if callee and callee.source == "=[C]" then
         if callee.name == "yield" then
-          -- We don't know where we're headed yet (if yield gets renamed, all\
+          -- We don't know where we're headed yet (if yield gets renamed, all
           -- bets are off)
           set_current_line(ACCUMULATE_TO_NEXT)
           recorder.record("Y")
@@ -126,6 +156,8 @@ local function record(action, line, time)
       end
 
     else -- action == "return"
+      stack_depth = stack_depth - 1
+
       if should_trace(callee) then
         -- square up the callee's time to the last line executed
         set_current_line(callee.currentline)
@@ -155,6 +187,7 @@ local function record(action, line, time)
     end
 
   elseif action == "tail return" then
+    stack_depth = stack_depth - 1
     local caller = debug.getinfo(CALLER_INDEX, "Sl")
     -- If we've got a real caller, we're heading back to non-tail-call land
     -- start charging the caller for time
@@ -209,6 +242,8 @@ local function init_trace(line)
   -- Record the current thread
   thread_map, thread_count = { [coroutine.running() or "main"] = 1 }, 1
 
+  count_stack()
+  stack_depth = stack_depth - 1
   current_line, accumulated_us = line, 0
 end
 
@@ -234,10 +269,10 @@ end
 local function hook_start()
   local callee = debug.getinfo(2, "Sl")
   if callee.short_src == start_short_src and callee.linedefined == start_line then
-    if ffi then
-      debug.sethook(hook_luajit_start, "l")
-    elseif c_hook then
+    if c_hook then
       debug.sethook(hook_c_start, "l")
+    elseif ffi then
+      debug.sethook(hook_luajit_start, "l")
     else
       debug.sethook(hook_lua_start, "l")
     end

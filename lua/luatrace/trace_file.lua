@@ -36,14 +36,14 @@ local file                              -- The file to write traces to
 -- Write traces to a file ------------------------------------------------------
 
 local function write_trace(a, b, c, d)
-  if a == ">" or a == "S" then
+  if type(a) == "number" then
+    file:write(tonumber(a), " ", ("%g"):format(tonumber(b)), "\n")
+  elseif a:match("[>ST]") then
     file:write(a, " ", tostring(b), " ", tostring(c), " ", tostring(d), "\n")
   elseif a == "R" then
     file:write("R ", tostring(b), "\n")
-  elseif type(a) == "string" then               -- It's one of <, Y, P or E
+  else                                  -- It's one of <, Y, P or E
     file:write(a, "\n")
-  else
-    file:write(tonumber(a), " ", ("%g"):format(tonumber(b)), "\n")
   end
 end
 
@@ -112,7 +112,7 @@ function trace_file.read(settings)
   recorder.open(settings)
   for l in file:lines() do
     local l1 = l:sub(1, 1)
-    if l1 == "S" or l1 == ">" then
+    if l1:match("[>ST]") then
       local filename, linedefined, lastlinedefined = l:match(". (%S+) (%d+) (%d+)")
       recorder.record(l1, filename, tonumber(linedefined), tonumber(lastlinedefined))
     elseif l1 == "R" then

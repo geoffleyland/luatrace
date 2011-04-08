@@ -160,7 +160,9 @@ end
 
 local function play_return(callee, caller)
   local current_line = caller.source_file.lines[caller.current_line]
-  current_line.child_time = current_line.child_time + callee.frame_time
+  if current_line then
+    current_line.child_time = current_line.child_time + callee.frame_time
+  end
 
   caller.frame_time = caller.frame_time + callee.frame_time
   if not clear_frame_time(callee.frame_time, callee.source_file, callee.func.line_defined, 0) then
@@ -170,17 +172,21 @@ end
 
 
 local function do_return()
-  if stack.top <= 0 then
-    error_count = error_count + 1
-    local top = get_top()
-    io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
-      format(error_count, trace_count, top.source_file.filename, top.line_defined or 0, top.last_line_defined or 0))
-  else
-    local callee = pop()
-    local caller = get_top()
-    if caller then
-      caller.protected = false
-      play_return(callee, caller)
+  while true do
+    if stack.top <= 0 then
+      error_count = error_count + 1
+      local top = get_top()
+      io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
+        format(error_count, trace_count, top.source_file.filename, top.line_defined or 0, top.last_line_defined or 0))
+      break
+    else
+      local callee = pop()
+      local caller = get_top()
+      if caller then
+        caller.protected = false
+        play_return(callee, caller)
+      end
+      if not callee.tailcall then break end
     end
   end
 end
@@ -189,11 +195,11 @@ end
 function profile.record(a, b, c, d)
   trace_count = trace_count + 1
 
-  if a == "S" or a == ">" then                  -- Call or start
+  if a == "S" or a == ">" or a == "T" then      -- Start, call or tailcall
     local filename, line_defined, last_line_defined = b, c, d
     local source_file = get_source_file(filename)
     local func = get_function(filename, line_defined, last_line_defined)
-    push{ source_file=source_file, func=func, frame_time=0 }
+    push{ source_file=source_file, func=func, frame_time=0, tailcall=(a=="T") or nil }
 
   elseif a == "<" then                          -- Return
     do_return()
@@ -248,9 +254,16 @@ function profile.record(a, b, c, d)
 
     if top.func.line_defined > 0 and
       (line_number < top.func.line_defined or line_number > top.func.last_line_defined) then
-      error_count = error_count + 1
-      io.stderr:write(("ERROR (%4d, line %7d): counted execution of %d microseconds at line %d of a function defined at %s:%d-%d\n"):
-        format(error_count, trace_count, time, line_number, top.source_file.filename, top.func.line_defined, top.func.last_line_defined))
+      -- luajit sometimes forgets to tell us about returns at all, so guess that
+      -- there might have been one and try again
+      do_return()
+      top = get_top()
+      if top.func.line_defined > 0 and
+        (line_number < top.func.line_defined or line_number > top.func.last_line_defined) then
+        error_count = error_count + 1
+        io.stderr:write(("ERROR (%4d, line %7d): counted execution of %g microseconds at line %d of a function defined at %s:%d-%d\n"):
+          format(error_count, trace_count, time, line_number, top.source_file.filename, top.func.line_defined, top.func.last_line_defined))
+      end
     end
 
     local line = get_line(line_number)
