@@ -136,14 +136,13 @@ local function get_line(line_number)
 end
 
 
-local function clear_frame_time(caller, time, callee_source_file, callee_line_number, offset)
+local function clear_frame_time(time, callee_source_file, callee_line_number, offset)
   -- Counting frame time for recursive functions is tricky.
   -- We have to crawl up the stack, and if we find the function or line that
   -- generated the frame time running higher up the stack, we have to subtract
   -- the callee time from the higher function's child time (because we're going
   -- to add the same time to the higher copy of the function later and we don't
   -- want to add it twice)
---  caller.frame_time = caller.frame_time + time
 
   for j = stack.top - offset, 1, -1 do
     local framej = stack[j]
@@ -161,8 +160,8 @@ local function play_return(callee, caller)
   current_line.child_time = current_line.child_time + callee.frame_time
 
   caller.frame_time = caller.frame_time + callee.frame_time
-  clear_frame_time(caller, callee.frame_time, callee.source_file, callee.func.line_defined, 0)
-  clear_frame_time(caller, callee.frame_time, caller.source_file, caller.current_line, 1)
+  clear_frame_time(callee.frame_time, callee.source_file, callee.func.line_defined, 0)
+  clear_frame_time(callee.frame_time, caller.source_file, caller.current_line, 1)
 end
 
 
@@ -251,7 +250,7 @@ function profile.record(a, b, c, d)
     end
     line.self_time = line.self_time + time
     top.frame_time = top.frame_time + time
-    clear_frame_time(top, time, top.source_file, line_number, 1)
+    clear_frame_time(time, top.source_file, line_number, 1)
     top.current_line = line_number
   end
 end
