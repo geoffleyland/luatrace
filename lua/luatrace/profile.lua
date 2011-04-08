@@ -169,6 +169,23 @@ local function play_return(callee, caller)
 end
 
 
+local function do_return()
+  if stack.top <= 0 then
+    error_count = error_count + 1
+    local top = get_top()
+    io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
+      format(error_count, trace_count, top.source_file.filename, top.line_defined or 0, top.last_line_defined or 0))
+  else
+    local callee = pop()
+    local caller = get_top()
+    if caller then
+      caller.protected = false
+      play_return(callee, caller)
+    end
+  end
+end
+
+
 function profile.record(a, b, c, d)
   trace_count = trace_count + 1
 
@@ -179,21 +196,9 @@ function profile.record(a, b, c, d)
     push{ source_file=source_file, func=func, frame_time=0 }
 
   elseif a == "<" then                          -- Return
-    if stack.top <= 0 then
-      error_count = error_count + 1
-      local top = get_top()
-      io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
-        format(error_count, trace_count, top.source_file.filename, top.line_defined or 0, top.last_line_defined or 0))
-    else
-      local callee = pop()
-      local caller = get_top()
-      if caller then
-        caller.protected = false
-        play_return(callee, caller)
-      end
-    end
+    do_return()
 
-  elseif a == "R" then                         -- Resume
+  elseif a == "R" then                          -- Resume
     local thread_id = b
     local thread = get_thread(thread_id)
     -- replay the thread onto the stack
@@ -202,7 +207,7 @@ function profile.record(a, b, c, d)
     end
     push_thread(thread)
 
-  elseif a == "Y" then                         -- Yield
+  elseif a == "Y" then                          -- Yield
     if thread_stack.top <= 0 then
       error_count = error_count + 1
       local top = get_top()
@@ -220,10 +225,10 @@ function profile.record(a, b, c, d)
       pop_thread()
     end
 
-  elseif a == "P" then                         -- pcall
+  elseif a == "P" then                          -- pcall
     get_top().protected = true
 
-  elseif a == "E" then                         -- Error!
+  elseif a == "E" then                          -- Error!
     while true do
       local callee = pop()
       local caller = get_top()
@@ -235,7 +240,7 @@ function profile.record(a, b, c, d)
       end
     end
 
-  else                                         -- Line
+  else                                          -- Line
     local line_number, time = a, b
     total_time = total_time + time
 
