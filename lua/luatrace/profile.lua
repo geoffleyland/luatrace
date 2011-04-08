@@ -259,7 +259,9 @@ function profile.record(a, b, c, d)
     end
     line.self_time = line.self_time + time
     top.frame_time = top.frame_time + time
-    clear_frame_time(time, top.source_file, line_number, 1, true)
+    if line_number ~= top.func.line_defined then
+      clear_frame_time(time, top.source_file, line_number, 1, true)
+    end
     top.current_line = line_number
   end
 end
