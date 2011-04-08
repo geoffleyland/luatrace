@@ -3,7 +3,7 @@ LUA=${1:-lua}
 cd lua
 for f in test/*.lua
 do
-  echo TESTING $f
+  echo Testing $LUA $f
   $LUA $f
   luatrace.profile
   rm trace-out.txt
