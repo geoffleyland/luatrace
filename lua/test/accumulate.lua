@@ -1,6 +1,6 @@
 -- If a function calls itself (directly or indirectly), then you have to be
 -- careful that you only count that function's time once.
--- If you do it wrong, you'll have register a call to the "lower" function
+-- If you do it wrong, you'll have a record of a call to the "lower" function
 -- with the correct self and child time, and the upper function's self and
 -- child time will be an accurate reflection of the time elapsed while the upper
 -- function was running, but when you accumulate the time for the two calls,
