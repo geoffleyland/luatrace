@@ -24,6 +24,9 @@ you wish to trace with `luatrace.tron()` and `luatrace.troff()`.
 If you wish to use the profiler directly rather than on a trace file you can use
 `lua -luatrace.profile <your lua file>` or `local luatrace = require("luatrace.profile")`.
 
+luatrace runs under "plain" Lua and LuaJIT with the -joff option (LuaJIT doesn't
+call hooks in compiled code, and luatrace loses track of where it's up to)
+
 luatrace is brought to you by [Incremental](http://www.incremental.co.nz/) (<info@incremental.co.nz>)
 and is available under the [MIT Licence](http://www.opensource.org/licenses/mit-license.php).
 
@@ -41,8 +44,9 @@ Timing is provided one of three ways:
 + Lua - with a debug hook calling `os.clock`
 + LuaJIT - with a debug hook calling `ffi.C.clock` - `os.clock` is not yet
   implemented as a fast function
-+ Lua - if the c_hook has been built then that's used instead of the Lua hook.
-  The C uses the C library's `clock` and should call it closer to actual code
++ Lua and LuaJIT - if the c_hook has been built then that's used instead of the
+  Lua or LuaJIT hook.  It's always better to use the C hook.
+  The hook uses the C library's `clock` and should call it closer to actual code
   execution, so the traces should be more accurate.
   On mach plaforms (ie OS X), the c_hook uses the `mach_absolute_time` high
   resolution timer for nanosecond resolution (but not accuracy)
@@ -52,6 +56,7 @@ range of arguments:
 
 + `("S", <filename>, <line>)` - the trace has started somewhere in a function defined on line
 + `(">", <filename>, <line>)` - there's been a call to a function defined on line
++ `("T", <filename>, <line>)` - there's been a tailcall to a function defined on line (LuaJIT only)
 + `("<")` - return from a function
 + `("R", <thread_id>)` - Resume the thread thread_id
 + `("Y")` - Yield
@@ -77,14 +82,21 @@ Lua or LuaJIT.
 
 ## 4. Issues
 
-+ It's really slow
-+ It doesn't work with LuaJIT yet because I haven't worked out how to handle tail calls with LuaJIT
++ It's _really_ slow
++ Tracing is overcomplicated and has to check the stack depth too frequently
++ Profiling is very complicated when there's a lot on one line (one line functions)
 + Times probably aren't accurate because of the time spent getting between user code and the hooks
 + There aren't many back-ends
-+ I haven't done any work on the timing errors (ie how much "hook time" is recorded as execution time)
 
 
-## 5. Alternatives
+## 5. Wishlist
+
++ More of the hook should be in C
++ It would be nice if the recorder was in a separate Lua state and a separate thread
++ High-resolution timers on other platforms
+
+
+## 6. Alternatives
 
 See [the Lua Wiki](http://lua-users.org/wiki/ProfilingLuaCode) for a list of profiling alternatives.
 [luacov](http://luacov.luaforge.net/) provides coverage analysis.
