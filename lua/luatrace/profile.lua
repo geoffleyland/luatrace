@@ -136,7 +136,7 @@ local function get_line(line_number)
 end
 
 
-local function clear_frame_time(time, callee_source_file, callee_line_number, offset, exact)
+local function clear_frame_time(time, callee_source_file, callee_line_number, offset, defined_only)
   -- Counting frame time for recursive functions is tricky.
   -- We have to crawl up the stack, and if we find the function or line that
   -- generated the frame time running higher up the stack, we have to subtract
@@ -148,11 +148,11 @@ local function clear_frame_time(time, callee_source_file, callee_line_number, of
     local framej = stack[j]
     local current_line_number = framej.current_line
     if framej.source_file == callee_source_file and
-       (((not exact) and (framej.func.line_defined == callee_line_number)) or
-        (exact and (current_line_number == callee_line_number))) then
+       (framej.func.line_defined == callee_line_number or
+        ((not defined_only) and (current_line_number == callee_line_number))) then
       local current_line = framej.source_file.lines[current_line_number]
       current_line.child_time = current_line.child_time - time
-      break
+      return true
     end
   end
 end
@@ -163,8 +163,9 @@ local function play_return(callee, caller)
   current_line.child_time = current_line.child_time + callee.frame_time
 
   caller.frame_time = caller.frame_time + callee.frame_time
-  clear_frame_time(callee.frame_time, callee.source_file, callee.func.line_defined, 0)
-  clear_frame_time(callee.frame_time, caller.source_file, caller.current_line, 1)
+  if not clear_frame_time(callee.frame_time, callee.source_file, callee.func.line_defined, 0) then
+    clear_frame_time(callee.frame_time, caller.source_file, caller.current_line, 1)
+  end
 end
 
 
