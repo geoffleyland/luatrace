@@ -3,7 +3,9 @@
 luatrace = require("luatrace")
 
 function c(f)
-  for i = 1, 5 do f() end
+  for i = 1, 5 do
+    f()
+  end
 end
 
 function a()
