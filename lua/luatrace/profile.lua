@@ -312,7 +312,9 @@ end
 
 
 function profile.close()
-  local sorted_source_files, max_line_length = read_source()
+  local formats = { n = {}, s = {}}
+  local sorted_source_files
+  sorted_source_files, formats.max_line_length = read_source()
 
   local all_lines = {}
 
@@ -326,20 +328,20 @@ function profile.close()
 
   local divisor, time_units, time_format
   if max_time < 10 then
-    divisor = 0.001
-    time_units = "nanoseconds"
+    formats.divisor = 0.001
+    formats.time_units = "nanoseconds"
     time_format = "d"
   elseif max_time < 10000 then
-    divisor = 1
-    time_units = "microseconds"
+    formats.divisor = 1
+    formats.time_units = "microseconds"
     time_format = ".2f"
   elseif max_time < 10000000 then
-    divisor = 1000
-    time_units = "milliseconds"
+    formats.divisor = 1000
+    formats.time_units = "milliseconds"
     time_format = ".2f"
   else
-    divisor = 1000000
-    time_units = "seconds"
+    formats.divisor = 1000000
+    formats.time_units = "seconds"
     time_format = ".2f"
   end
   local function number_format(title, fmt, max_value)
@@ -351,24 +353,25 @@ function profile.close()
     return number_format, string_format
   end
 
-  local time_nformat, time_sformat = number_format("Child", time_format, max_time / divisor)
-  local visit_nformat, visit_sformat = number_format("Visits", "d", max_visits)
-  local line_number_nformat, line_number_sformat = number_format("line", "d", max_line_number)
+  formats.n.time, formats.s.time = number_format("Child", time_format, max_time / formats.divisor)
+  formats.n.visit, formats.s.visit = number_format("Visits", "d", max_visits)
+  formats.n.line_number, formats.s.line_number = number_format("line", "d", max_line_number)
 
   -- Write annotated source
-  local header_format = visit_sformat.." "..time_sformat.." "..time_sformat.." "..time_sformat.." "..line_number_sformat.." | "
-  local header = header_format:format("Visits", "Total", "Self", "Child", "Line")
-  local line_format = visit_nformat.." "..time_nformat.." "..time_nformat.." "..time_nformat.." "..line_number_nformat.." | %s\n"
+  local function source_format(f) return f.visit.." "..f.time.." "..f.time.." "..f.time.." "..f.line_number.." | %s" end
+  local header_format = source_format(formats.s)
+  local header = header_format:format("Visits", "Total", "Self", "Child", "Line", "")
+  local line_format = source_format(formats.n)
   local asf = io.open("annotated-source.txt", "w")
   for _, f in ipairs(sorted_source_files) do
-    asf:write(("="):rep(header:len() + max_line_length), "\n")
-    asf:write(header, f.filename, " - Times in ", time_units, "\n")
-    asf:write(("-"):rep(header:len() + max_line_length), "\n")
+    asf:write(("="):rep(header:len() + formats.max_line_length), "\n")
+    asf:write(header, f.filename, " - Times in ", formats.time_units, "\n")
+    asf:write(("-"):rep(header:len() + formats.max_line_length), "\n")
     for i, l in ipairs(f.lines) do
       if l.visits then
-        asf:write(line_format:format(l.visits, (l.self_time+l.child_time) / divisor, l.self_time / divisor, l.child_time / divisor, i, l.text))
+        asf:write(line_format:format(l.visits, (l.self_time+l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor, i, l.text), "\n")
       else
-        asf:write(header_format:format(".", ".", ".", ".", tonumber(l.line_number)), l.text, "\n")
+        asf:write(header_format:format(".", ".", ".", ".", tonumber(l.line_number), l.text), "\n")
       end
     end
     asf:write("\n")
@@ -386,17 +389,17 @@ function profile.close()
   end
   local title_format = ("%%-%ds"):format(title_len)
 
-  io.stderr:write(("Total time "..time_nformat.." %s\n"):format(total_time / divisor, time_units))
-  io.stderr:write("Times in ", time_units, "\n")
+  io.stderr:write(("Total time "..formats.n.time.." %s\n"):format(total_time / formats.divisor, formats.time_units))
+  io.stderr:write("Times in ", formats.time_units, "\n")
 
-  header_format = title_format.."  "..visit_sformat.."  "..time_sformat.."  "..time_sformat.."  "..time_sformat.. " | Line\n"
-  io.stderr:write(header_format:format("File:line", "Visits", "Total", "Self", "Child"))
-  line_format = title_format.."  "..visit_nformat.."  "..time_nformat.."  "..time_nformat.."  "..time_nformat.. " | %s\n"
+  local function report_format(f) return title_format.."  "..f.visit.."  "..f.time.."  "..f.time.."  "..f.time.. " | %s\n" end
+  io.stderr:write(report_format(formats.s):format("File:line", "Visits", "Total", "Self", "Child", "Line"))
+  line_format = report_format(formats.n)
 
   for i = 1, math.min(20, #lines) do
     local l = lines[i]
     io.stderr:write(line_format:format(l.title, l.visits,
-      (l.self_time + l.child_time) / divisor, l.self_time/divisor, l.child_time/divisor,
+      (l.self_time + l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor,
       l.text or "-"))
   end
 end
