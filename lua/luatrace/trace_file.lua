@@ -61,6 +61,21 @@ end
 
 local trace_file = {}
 
+local defaults =
+{
+  trace_file_name = DEFAULT_TRACE_FILE_NAME,
+  trace_limit = DEFAULT_TRACE_LIMIT
+}
+
+local function get_settings(s)
+  s = s or {}
+  for k, v in pairs(defaults) do
+    if not s[k] then s[k] = v end
+  end
+  return s
+end
+
+
 function trace_file.record(a, b, c, d)
   if limit < 2 then
     write_trace(a, b, c, d)
@@ -73,15 +88,15 @@ end
 
 
 function trace_file.open(settings)
-  if settings and settings.trace_file then
+  settings = get_settings(settings)
+
+  if settings.trace_file then
     file = settings.trace_file
-  elseif settings and settings.trace_file_name then
-    file = assert(io.open(trace_file_name, "w"), "Couldn't open trace file")
   else
-    file = assert(io.open(DEFAULT_TRACE_FILE_NAME, "w"), "Couldn't open trace file")
+    file = assert(io.open(settings.trace_file_name, "w"), "Couldn't open trace file")
   end
 
-  limit = (settings and settings.trace_limit) or DEFAULT_TRACE_LIMIT
+  limit = settings.trace_limit
 
   count, traces = 0, {}
 end
@@ -98,13 +113,14 @@ end
 
 function trace_file.read(settings)
   local do_not_close_file
-  if settings and settings.trace_file then
+  
+  settings = get_settings(settings)
+
+  if settings.trace_file then
     file = settings.trace_file
     do_not_close_file = true
-  elseif settings and settings.trace_file_name then
-    file = assert(io.open(trace_file_name, "r"), "Couldn't open trace file")
   else
-    file = assert(io.open(DEFAULT_TRACE_FILE_NAME, "r"), "Couldn't open trace file")
+    file = assert(io.open(settings.trace_file_name, "r"), "Couldn't open trace file")
   end
 
   local recorder = settings.recorder

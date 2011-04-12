@@ -308,16 +308,23 @@ end
 
 local luatrace = {}
 
+local defaults =
+{
+  recorder = DEFAULT_RECORDER,
+}
+
 -- Turn the tracer on
 function luatrace.tron(settings)
-  if settings and settings.recorder then
-    if type(settings.recorder) == "string" then
-      recorder = require(settings.recorder)
-    else
-      recorder = settings.recorder
-    end
+  settings = settings or {}
+  for k, v in pairs(defaults) do
+    if not settings[k] then settings[k] = v end
   end
-  if not recorder then recorder = require(DEFAULT_RECORDER) end
+
+  if type(settings.recorder) == "string" then
+    recorder = require(settings.recorder)
+  else
+    recorder = settings.recorder
+  end
   recorder.open(settings)
 
   local me = debug.getinfo(1, "Sl")
@@ -336,6 +343,13 @@ function luatrace.troff()
   recorder = nil
   os.remove(luatrace_exit_trick_file_name)
   os.exit = luatrace_raw_exit
+end
+
+
+function set_defaults(d)
+  for k, v in pairs(d) do
+    defaults[k] = v
+  end
 end
 
 
