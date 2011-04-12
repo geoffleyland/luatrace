@@ -1,0 +1,12 @@
+LUA=${1:-lua}
+TRACE_DIR=test-traces/`basename $LUA`
+mkdir -p $TRACE_DIR
+
+cd lua
+for f in test/*.lua
+do
+  TRACE_NAME="../$TRACE_DIR/`basename $f`.trace"
+  echo Collecting trace with $LUA -e "require('luatrace').set_defaults{record_time=false, trace_file_name='$TRACE_NAME'}" $f
+  $LUA -e "require('luatrace').set_defaults{record_time=false, trace_file_name='$TRACE_NAME'}" $f
+done
+cd ..
