@@ -66,6 +66,7 @@ local watch_thread                      -- The thread we're trying to spot chang
 local CALLEE_INDEX, CALLER_INDEX        -- The indexes used for getinfo depend on the hook we're using
 
 local ACCUMULATE_TO_NEXT = -1
+local do_record_time = true
 
 -- Emit a trace if the current line has changed
 -- and reset the current line and accumulated time
@@ -74,7 +75,7 @@ local function set_current_line(l)
     -- If current_line is ACCUMULATE_TO_NEXT then leave the time for the new
     -- current_line to pick up
     if current_line ~= ACCUMULATE_TO_NEXT and accumulated_us > 0 then
-      recorder.record(current_line, accumulated_us)
+      recorder.record(current_line, do_record_time and accumulated_us or 0)
       accumulated_us = 0
     end
     current_line = l
@@ -327,6 +328,8 @@ function luatrace.tron(settings)
   end
   recorder.open(settings)
 
+  if not settings.record_time then do_record_time = settings.record_time end
+
   local me = debug.getinfo(1, "Sl")
   start_short_src, start_line = me.short_src, me.linedefined
 
@@ -346,7 +349,8 @@ function luatrace.troff()
 end
 
 
-function set_defaults(d)
+-- Set defaults for the Luatrace (handy on the command line!)
+function luatrace.set_defaults(d)
   for k, v in pairs(d) do
     defaults[k] = v
   end
