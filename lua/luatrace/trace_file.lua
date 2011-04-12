@@ -122,7 +122,9 @@ function trace_file.read(settings)
       recorder.record(l1)
     else
       local line, time = l:match("(%d+) (%d+\.*%d*)")
-      recorder.record(tonumber(line), tonumber(time))
+      if line then
+        recorder.record(tonumber(line), tonumber(time))
+      end
     end
   end
   recorder.close()
