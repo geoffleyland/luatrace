@@ -345,6 +345,16 @@ function profile.close()
   -- Work out the "most" of some numbers, so we can format reports better
   local max_time, max_visits, max_line_number = 0, 0, 0
   for _, l in ipairs(lines) do
+    if l.child_time > total_time then
+      error_count = error_count + 1
+      io.stderr:write(("ERROR (%4d): Line %s:%d accumulated child execution time of %g microseconds which is more that the total running time of %g microseconds: %s\n"):
+        format(error_count, l.file.filename, l.line_number, l.child_time, total_time, l.text or "-"))
+    elseif l.child_time < 0 then
+      error_count = error_count + 1
+      io.stderr:write(("ERROR (%4d): Line %s:%d accumulated a negative child execution time (%g microseconds): %s\n"):
+        format(error_count, l.file.filename, l.line_number, l.child_time, l.text or "-"))
+    end
+
     max_time = math.max(max_time, l.self_time + l.child_time)
     max_visits = math.max(max_visits, l.visits)
     max_line_number = math.max(max_line_number, l.line_number)
