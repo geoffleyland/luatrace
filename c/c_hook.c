@@ -5,7 +5,11 @@
 #include <mach/mach_time.h>
 typedef uint64_t hook_time_t;
 #define CLOCK_FUNCTION mach_absolute_time
-#else
+#elif __linux__
+#include <time.h>
+typedef long hook_time_t;
+#define CLOCK_FUNCTION lclock
+#elseif
 #include <time.h>
 typedef clock_t hook_time_t;
 #define CLOCK_FUNCTION clock
@@ -25,6 +29,19 @@ static void get_microseconds_info(void)
   mach_timebase_info(&timebase_info);
   microseconds_numerator = timebase_info.numer;
   microseconds_denominator = (lua_Number)(timebase_info.denom * 1000);
+}
+#elif __linux__
+static void get_microseconds_info(void)
+{
+  microseconds_numerator = 1;
+  microseconds_denominator = 1000;
+}
+
+static long lclock()
+{
+  struct timespec tp;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+  return tp.tv_sec * 1000000000L + tp.tv_nsec;
 }
 #else
 static void get_microseconds_info(void)
