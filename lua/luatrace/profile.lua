@@ -311,9 +311,33 @@ local function read_source()
 end
 
 
+local function write_annotated_source(sorted_source_files, formats)
+  local function source_format(f) return f.visit.." "..f.time.." "..f.time.." "..f.time.." "..f.line_number.." | %s" end
+  local header_format = source_format(formats.s)
+  local header = header_format:format("Visits", "Total", "Self", "Child", "Line", "")
+  local line_format = source_format(formats.n)
+  local asf = io.open("annotated-source.txt", "w")
+  for _, f in ipairs(sorted_source_files) do
+    asf:write(("="):rep(header:len() + formats.max_line_length), "\n")
+    asf:write(header, f.filename, " - Times in ", formats.time_units, "\n")
+    asf:write(("-"):rep(header:len() + formats.max_line_length), "\n")
+    for i, l in ipairs(f.lines) do
+      if l.visits then
+        asf:write(line_format:format(l.visits, (l.self_time+l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor, i, l.text), "\n")
+      else
+        asf:write(header_format:format(".", ".", ".", ".", tonumber(l.line_number), l.text), "\n")
+      end
+    end
+    asf:write("\n")
+  end
+  asf:close()
+end
+
+
 function profile.close()
   local formats = { n = {}, s = {}}
   local sorted_source_files
+
   sorted_source_files, formats.max_line_length = read_source()
 
   local all_lines = {}
@@ -357,26 +381,7 @@ function profile.close()
   formats.n.visit, formats.s.visit = number_format("Visits", "d", max_visits)
   formats.n.line_number, formats.s.line_number = number_format("line", "d", max_line_number)
 
-  -- Write annotated source
-  local function source_format(f) return f.visit.." "..f.time.." "..f.time.." "..f.time.." "..f.line_number.." | %s" end
-  local header_format = source_format(formats.s)
-  local header = header_format:format("Visits", "Total", "Self", "Child", "Line", "")
-  local line_format = source_format(formats.n)
-  local asf = io.open("annotated-source.txt", "w")
-  for _, f in ipairs(sorted_source_files) do
-    asf:write(("="):rep(header:len() + formats.max_line_length), "\n")
-    asf:write(header, f.filename, " - Times in ", formats.time_units, "\n")
-    asf:write(("-"):rep(header:len() + formats.max_line_length), "\n")
-    for i, l in ipairs(f.lines) do
-      if l.visits then
-        asf:write(line_format:format(l.visits, (l.self_time+l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor, i, l.text), "\n")
-      else
-        asf:write(header_format:format(".", ".", ".", ".", tonumber(l.line_number), l.text), "\n")
-      end
-    end
-    asf:write("\n")
-  end
-  asf:close()
+  write_annotated_source(sorted_source_files, formats)
 
   -- Report on the lines using the most time
   table.sort(lines, function(a, b) return a.self_time + a.child_time > b.self_time + b.child_time end)
