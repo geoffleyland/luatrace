@@ -177,7 +177,7 @@ local function do_return()
       error_count = error_count + 1
       local top = get_top()
       io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
-        format(error_count, trace_count, top.source_file.filename, top.line_defined or 0, top.last_line_defined or 0))
+        format(error_count, trace_count, top and top.source_file.filename or "<no file>", top and top.line_defined or 0, top and top.last_line_defined or 0))
       break
     else
       local callee = pop()
