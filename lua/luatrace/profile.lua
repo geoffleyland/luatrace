@@ -282,7 +282,38 @@ end
 
 -- Generating reports ----------------------------------------------------------
 
+local function read_source()
+  -- Read all the source files, and sort them into alphabetical order
+  local max_line_length = 0
+  local sorted_source_files = {}
+  for _, f in pairs(source_files) do
+    if not f.filename:match("luatrace") then
+      local s = io.open(f.filename, "r")
+      if s then
+        sorted_source_files[#sorted_source_files+1] = f
+        local i = 1
+        for l in s:lines() do
+          max_line_length = math.max(max_line_length, l:len())
+          if f.lines[i] then
+            f.lines[i].text = l
+          else
+            f.lines[i] = { text=l, file=f, line_number=i }
+          end
+          i = i + 1
+        end
+        s:close()
+      end
+    end
+  end
+  table.sort(sorted_source_files, function(a, b) return a.filename < b.filename end)
+
+  return sorted_source_files, max_line_length
+end
+
+
 function profile.close()
+  local sorted_source_files, max_line_length = read_source()
+
   local all_lines = {}
 
   -- Work out the "most" of some numbers, so we can format reports better
@@ -323,30 +354,6 @@ function profile.close()
   local time_nformat, time_sformat = number_format("Child", time_format, max_time / divisor)
   local visit_nformat, visit_sformat = number_format("Visits", "d", max_visits)
   local line_number_nformat, line_number_sformat = number_format("line", "d", max_line_number)
-
-  -- Read all the source files, and sort them into alphabetical order
-  local max_line_length = 0
-  local sorted_source_files = {}
-  for _, f in pairs(source_files) do
-    if not f.filename:match("luatrace") then
-      local s = io.open(f.filename, "r")
-      if s then
-        sorted_source_files[#sorted_source_files+1] = f
-        local i = 1
-        for l in s:lines() do
-          max_line_length = math.max(max_line_length, l:len())
-          if f.lines[i] then
-            f.lines[i].text = l
-          else
-            f.lines[i] = { text=l, file=f, line_number=i }
-          end
-          i = i + 1
-        end
-        s:close()
-      end
-    end
-  end
-  table.sort(sorted_source_files, function(a, b) return a.filename < b.filename end)
 
   -- Write annotated source
   local header_format = visit_sformat.." "..time_sformat.." "..time_sformat.." "..time_sformat.." "..line_number_sformat.." | "
