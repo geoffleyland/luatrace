@@ -342,8 +342,8 @@ function profile.close()
           end
           i = i + 1
         end
+        s:close()
       end
-      s:close()
     end
   end
   table.sort(sorted_source_files, function(a, b) return a.filename < b.filename end)
