@@ -287,7 +287,7 @@ local function read_source()
   local max_line_length = 0
   local sorted_source_files = {}
   for _, f in pairs(source_files) do
-    if not f.filename:match("luatrace") then
+    if not f.filename:match("l*uatrace") then
       local s = io.open(f.filename, "r")
       if s then
         sorted_source_files[#sorted_source_files+1] = f
