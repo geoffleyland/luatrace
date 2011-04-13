@@ -328,7 +328,7 @@ function luatrace.tron(settings)
   end
   recorder.open(settings)
 
-  if not settings.record_time then do_record_time = settings.record_time end
+  if settings.record_time ~= nil then do_record_time = settings.record_time end
 
   local me = debug.getinfo(1, "Sl")
   start_short_src, start_line = me.short_src, me.linedefined
