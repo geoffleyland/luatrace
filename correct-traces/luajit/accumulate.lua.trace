@@ -33,5 +33,5 @@ T test/accumulate.lua 18 23
 <
 26 0
 27 0
-> ./luatrace.lua 343 349
-343 0
+> ./luatrace.lua 346 352
+346 0

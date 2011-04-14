@@ -1,5 +1,6 @@
 LUA=${1:-lua}
-TRACE_DIR=test-traces/`basename $LUA`
+TRACE_ROOT=${2:-test-traces}
+TRACE_DIR=$TRACE_ROOT/`basename $LUA`
 mkdir -p $TRACE_DIR
 
 cd lua
