@@ -9,7 +9,7 @@ typedef uint64_t hook_time_t;
 #include <time.h>
 typedef long hook_time_t;
 #define CLOCK_FUNCTION lclock
-#elseif
+#else
 #include <time.h>
 typedef clock_t hook_time_t;
 #define CLOCK_FUNCTION clock
