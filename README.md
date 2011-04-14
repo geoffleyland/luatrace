@@ -2,23 +2,26 @@
 
 ## 1. What?
 
+luatrace is a Lua module that collects information about what your code is doing
+and how long it takes, and can analyse that information to generate profile and
+coverage reports.
+
 luatrace adds a layer on top of Lua's debug hooks to make it easier to collect
 information for profiling and coverage analysis.
-
-It collects a trace of every line executed, and can then analyse the trace to
-provide time profile and coverage reports.
+luatrace traces of every line executed, not just calls.
 
 luatrace can trace through coroutine resumes and yields, and through xpcalls,
 pcalls and errors.
 On some platforms (OS X only) it uses high resolution timers to collect
 times in the order of nanoseconds.
 
-To use it run you code with `lua -luatrace <your lua file>` and then analyse it
+To use it, install luatrace with `sudo make install`,
+run your code with `lua -luatrace <your lua file>` and then analyse it
 with `luatrace.profile`.  The profiler will display a list of the top 20 functions
 by time, and write a copy of all the source traced annotated with times for each
 line.
 
-Alteratively, you can `local luatrace = require("luatrace")` and surround the code
+Alternatively, you can `local luatrace = require("luatrace")` and surround the code
 you wish to trace with `luatrace.tron()` and `luatrace.troff()`.
 
 If you wish to use the profiler directly rather than on a trace file you can use
@@ -33,7 +36,7 @@ and is available under the [MIT Licence](http://www.opensource.org/licenses/mit-
 
 ## 2. How?
 
-luatrace is separated into to parts - the trace collector, and the backends that
+luatrace is separated into two parts - the trace collector, and the backends that
 record and process the traces.
 
 The trace collector uses Lua's debug hooks and adds timing information and a
@@ -49,7 +52,9 @@ Timing is provided one of three ways:
   The hook uses the C library's `clock` and should call it closer to actual code
   execution, so the traces should be more accurate.
   On mach plaforms (ie OS X), the c_hook uses the `mach_absolute_time` high
-  resolution timer for nanosecond resolution (but not accuracy)
+  resolution timer for nanosecond resolution (but be careful - although the
+  timing is collected at nanosecond resolution, there are many reasons why
+  profiles are not accurate to within a nanosecond!)
 
 The collector outputs traces by calling a recorder's `record` function with a
 range of arguments:
@@ -66,13 +71,13 @@ range of arguments:
 
 At the moment, there's two recorders - `luatrace.trace_file` and `luatrace.profile`.
 
-`trace_file` is the default back-end.  It just writes the trace out to a file in a simple format,
+`trace_file` is the default backend.  It just writes the trace out to a file in a simple format,
 which it can also read.  When it reads a file, it reads it to another recorder
 as if the recorder were watching the program execute.
 
 `profile` provides limited profile information.
 
-Back ends will improve as I need them or as you patch/fork.
+Backends will improve as I need them or as you patch/fork.
 
 
 ## 3. Requirements
