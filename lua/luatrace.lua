@@ -249,18 +249,21 @@ local function init_trace(line)
 end
 
 local function hook_lua_start(action, line)
+  io.stderr:write("luatrace: tracing with Lua hook\n")
   init_trace(line)
   CALLEE_INDEX, CALLER_INDEX = 3, 4
   debug.sethook(hook_lua, "crl")
   time_out = os.clock()
 end
 local function hook_luajit_start(action, line)
+  io.stderr:write("luatrace: tracing with FFI hook\n")
   init_trace(line)
   CALLEE_INDEX, CALLER_INDEX = 3 ,4
   debug.sethook(hook_luajit, "crl")
   time_out = ffi.C.clock()
 end
 local function hook_c_start(action, line)
+  io.stderr:write("luatrace: tracing with C hook\n")
   init_trace(line)
   CALLEE_INDEX, CALLER_INDEX = 2, 3
   c_hook.set_hook(record)
