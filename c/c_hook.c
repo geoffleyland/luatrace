@@ -9,6 +9,10 @@ typedef uint64_t hook_time_t;
 #include <time.h>
 typedef long hook_time_t;
 #define CLOCK_FUNCTION lclock
+#elif _WIN32
+#include <windows.h>
+typedef long long hook_time_t;
+#define CLOCK_FUNCTION wclock
 #else
 #include <time.h>
 typedef clock_t hook_time_t;
@@ -37,11 +41,35 @@ static void get_microseconds_info(void)
   microseconds_denominator = 1000;
 }
 
-static long lclock()
+static hook_time_t lclock()
 {
   struct timespec tp;
   clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
   return tp.tv_sec * 1000000000L + tp.tv_nsec;
+}
+#elif _WIN32
+static void get_microseconds_info(void)
+{
+  LARGE_INTEGER frequency;
+  QueryPerformanceFrequency(&frequency);
+  long long f = frequency.QuadPart;
+  if (f < 1000000)
+  {
+    microseconds_numerator = 1000000 / f;
+    microseconds_denominator = 1;
+  }
+  else
+  {
+    microseconds_numerator = 1;
+    microseconds_denominator = f / 1000000;
+  }
+}
+
+static hook_time_t wclock()
+{
+  LARGE_INTEGER t;
+  QueryPerformanceCounter(&t);
+  return t.QuadPart;
 }
 #else
 static void get_microseconds_info(void)

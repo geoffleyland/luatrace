@@ -6,21 +6,28 @@ LUA_LIBDIR=$(LUA_PREFIX)/lib/lua/5.1
 LUA_INCDIR=$(LUA_PREFIX)/include
 
 CC=cc
-CFLAGS=-O3 -fPIC -wall
+CFLAGS=-O3 -Wall
 
 # Guess a platform
 UNAME=$(shell uname -s)
 ifneq (,$(findstring Darwin,$(UNAME)))
   # OS X
-  CFLAGS:=$(CFLAGS) -arch i686 -arch x86_64
+  CFLAGS:=$(CFLAGS) -fPIC -arch i686 -arch x86_64
   SHARED=-bundle -undefined dynamic_lookup
   LIBS=
   SO_SUFFIX=so
 else
+ifneq (,$(findstring MINGW,$(UNAME)))
+  CC=gcc
+  SHARED=-shared -L$(LUA_BINDIR) -llua51
+  SO_SUFFIX=dll
+else
   # Linux
+  CFLAGS:=$(CFLAGS) -fPIC
   SHARED=-shared -llua
   LIBS=-lcstring
   SO_SUFFIX=so
+endif
 endif
 
 lua/luatrace/c_hook.$(SO_SUFFIX): c/c_hook.c
