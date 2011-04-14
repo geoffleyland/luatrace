@@ -12,8 +12,8 @@ luatrace traces of every line executed, not just calls.
 
 luatrace can trace through coroutine resumes and yields, and through xpcalls,
 pcalls and errors.
-On some platforms (OS X only) it uses high resolution timers to collect
-times in the order of nanoseconds.
+On some platforms it uses high resolution timers to collect times of the order
+of nanoseconds.
 
 To use it, install luatrace with `sudo make install`,
 run your code with `lua -luatrace <your lua file>` and then analyse it
@@ -49,12 +49,17 @@ Timing is provided one of three ways:
   implemented as a fast function
 + Lua and LuaJIT - if the c_hook has been built then that's used instead of the
   Lua or LuaJIT hook.  It's always better to use the C hook.
-  The hook uses the C library's `clock` and should call it closer to actual code
-  execution, so the traces should be more accurate.
-  On mach plaforms (ie OS X), the c_hook uses the `mach_absolute_time` high
-  resolution timer for nanosecond resolution (but be careful - although the
-  timing is collected at nanosecond resolution, there are many reasons why
-  profiles are not accurate to within a nanosecond!)
+
+By default the C hook uses the C library's `clock` and should call it closer to
+actual code execution, so the traces should be more accurate.
+On some plaforms the C hook uses a high-resolution timer:
+
++ On mach plaforms (ie OS X), the c_hook uses the `mach_absolute_time`
++ On Linux, it uses `clock_gettime`
++ On Windows, it uses `QueryPerformanceCounter`
+
+However, although the timing might be collected at nanosecond resolution, there
+are many reasons why profiles are not accurate to within a nanosecond!
 
 The collector outputs traces by calling a recorder's `record` function with a
 range of arguments:
@@ -91,14 +96,13 @@ Lua or LuaJIT.
 + Tracing is overcomplicated and has to check the stack depth too frequently
 + Profiling is very complicated when there's a lot on one line (one line functions)
 + Times probably aren't accurate because of the time spent getting between user code and the hooks
-+ There aren't many back-ends
++ There aren't many backends
 
 
 ## 5. Wishlist
 
 + More of the hook should be in C
 + It would be nice if the recorder was in a separate Lua state and a separate thread
-+ High-resolution timers on other platforms
 
 
 ## 6. Alternatives
