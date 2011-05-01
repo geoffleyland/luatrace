@@ -73,7 +73,7 @@ local function push(frame)
   replay_push(frame)
   local thread = thread_stack[thread_stack.top]
   thread.top = thread.top + 1
-  thread[thread.top] = { func=frame.func }
+  thread[thread.top] = frame
 end
 
 
@@ -209,7 +209,8 @@ function profile.record(a, b, c, d)
     local thread = get_thread(thread_id)
     -- replay the thread onto the stack
     for _, frame in ipairs(thread) do
-      replay_push{ source_file=frame.func.source_file, func=frame.func, frame_time=0, current_line=frame.current_line }
+      frame.frame_time = 0
+      replay_push(frame)
     end
     push_thread(thread)
 
