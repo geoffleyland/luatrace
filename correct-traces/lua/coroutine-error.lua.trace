@@ -5,7 +5,7 @@
 16 0
 P
 R 2
-T test/coroutine-error.lua 5 11
+> test/coroutine-error.lua 5 11
 6 0
 9 0
 Y
@@ -54,4 +54,4 @@ E
 <
 25 0
 26 0
-> ./luatrace.lua 346 352
+> ./luatrace.lua 348 354

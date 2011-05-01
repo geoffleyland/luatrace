@@ -9,7 +9,7 @@ P
 14 0
 15 0
 R 2
-T test/wrap-error.lua 5 11
+> test/wrap-error.lua 5 11
 5 0
 6 0
 9 0
@@ -50,5 +50,5 @@ E
 <
 27 0
 28 0
-> ./luatrace.lua 346 352
-346 0
+> ./luatrace.lua 348 354
+348 0

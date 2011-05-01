@@ -4,7 +4,7 @@
 19 0
 P
 R 2
-T test/coroutine-two.lua 10 14
+> test/coroutine-two.lua 10 14
 11 0
 12 0
 > test/coroutine-two.lua 6 8
@@ -61,7 +61,7 @@ Y
 > test/coroutine-two.lua 26 31
 28 0
 R 3
-T test/coroutine-two.lua 10 14
+> test/coroutine-two.lua 10 14
 11 0
 12 0
 > test/coroutine-two.lua 6 8
@@ -108,4 +108,4 @@ Y
 <
 36 0
 37 0
-> ./luatrace.lua 346 352
+> ./luatrace.lua 348 354

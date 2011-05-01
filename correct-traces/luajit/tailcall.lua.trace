@@ -53,5 +53,5 @@ T test/tailcall.lua 7 13
 <
 16 0
 17 0
-> ./luatrace.lua 346 352
-346 0
+> ./luatrace.lua 348 354
+348 0
