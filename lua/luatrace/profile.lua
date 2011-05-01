@@ -147,11 +147,11 @@ local function clear_frame_time(time, callee_func, callee_line_number, offset, d
 
   for j = stack.top - offset, 1, -1 do
     local framej = stack[j]
-    local current_line_number = framej.current_line
+    local current_line_number = framej.current_line.line_number
     if framej.func.source_file == callee_func.source_file and
        (framej.func.line_defined == callee_line_number or
         ((not defined_only) and (current_line_number == callee_line_number))) then
-      local current_line = get_line(current_line_number, framej) --framej.source_file.lines[current_line_number]
+      local current_line = framej.current_line
       current_line.child_time = current_line.child_time - time
       return true
     end
@@ -160,14 +160,14 @@ end
 
 
 local function play_return(callee, caller)
-  current_line = get_line(caller.current_line, caller)
+  local current_line = caller.current_line
   if current_line then
     current_line.child_time = current_line.child_time + callee.frame_time
   end
 
   caller.frame_time = caller.frame_time + callee.frame_time
   if not clear_frame_time(callee.frame_time, callee.func, callee.func.line_defined, 0) then
-    clear_frame_time(callee.frame_time, caller.func, caller.current_line, 1)
+    clear_frame_time(callee.frame_time, caller.func, current_line.line_number, 1)
   end
 end
 
@@ -268,7 +268,7 @@ function profile.record(a, b, c, d)
     end
 
     local line = get_line(line_number)
-    if top.current_line ~= line_number then
+    if top.current_line ~= line then
       line.visits = line.visits + 1
     end
     line.self_time = line.self_time + time
@@ -276,7 +276,7 @@ function profile.record(a, b, c, d)
     if line_number ~= top.func.line_defined then
       clear_frame_time(time, top.func, line_number, 1, true)
     end
-    top.current_line = line_number
+    top.current_line = line
   end
 end
 
