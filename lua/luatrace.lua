@@ -34,9 +34,7 @@ local function count_stack(start_depth)
                                         -- the caller of the hook that called this
   for i = start_depth, 65536 do
     if not debug.getinfo(i, "l") then
-      stack_depth = i - 2               -- The depth to the caller
-      assert(debug.getinfo(stack_depth+1, "l"))
-      assert(not debug.getinfo(stack_depth + 2, "l"))
+      stack_depth = i - 3               -- The depth to the caller
       return
     end
   end
@@ -44,7 +42,7 @@ end
 
 
 local function was_that_a_tailcall()
-  if debug.getinfo(stack_depth+2) then
+  if debug.getinfo(stack_depth+3, "l") then
     stack_depth = stack_depth + 1
     return false
   else
@@ -108,6 +106,10 @@ local function record(action, line, time)
         set_current_line(ACCUMULATE_TO_NEXT)
         -- Record a resume
         recorder.record("R", thread_id)
+        count_stack()
+        if action == "call" then
+          stack_depth = stack_depth - 1         -- so it looks like we're calling into the new thread
+        end
       end
       watch_thread = nil
     end
