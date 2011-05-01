@@ -63,14 +63,13 @@ local function get_thread(thread_id)
 end
 
 
-local function replay_push(frame)
+local function call(frame)
   stack.top = stack.top + 1
   stack[stack.top] = frame
 end
 
 
-local function push(frame)
-  replay_push(frame)
+local function call_on_thread(frame)
   local thread = thread_stack[thread_stack.top]
   thread.top = thread.top + 1
   thread[thread.top] = frame
@@ -199,7 +198,9 @@ function profile.record(a, b, c, d)
   if a == "S" or a == ">" or a == "T" then      -- Start, call or tailcall
     local filename, line_defined, last_line_defined = b, c, d
     local func = get_function(filename, line_defined, last_line_defined)
-    push{ func=func, frame_time=0, tailcall=(a=="T") or nil }
+    local frame = { func=func, frame_time=0, tailcall=(a=="T") or nil }
+    call(frame)
+    call_on_thread(frame)
 
   elseif a == "<" then                          -- Return
     do_return()
@@ -210,7 +211,7 @@ function profile.record(a, b, c, d)
     -- replay the thread onto the stack
     for _, frame in ipairs(thread) do
       frame.frame_time = 0
-      replay_push(frame)
+      call(frame)
     end
     push_thread(thread)
 
