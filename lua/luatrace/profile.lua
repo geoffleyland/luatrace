@@ -124,19 +124,20 @@ local function pop()
 end
 
 
-local function get_line(line_number)
-  local top = get_top()
-  local line = top.source_file.lines[line_number]
+local function get_line(line_number, frame)
+  frame = frame or get_top()
+  local file = frame.func.source_file
+  local line = file.lines[line_number]
   if not line then
-    line = { file=top.source_file, line_number=line_number, visits=0, self_time=0, child_time=0 }
-    top.source_file.lines[line_number] = line
+    line = { file=file, line_number=line_number, visits=0, self_time=0, child_time=0 }
+    file.lines[line_number] = line
     lines[#lines+1] = line
   end
   return line
 end
 
 
-local function clear_frame_time(time, callee_source_file, callee_line_number, offset, defined_only)
+local function clear_frame_time(time, callee_func, callee_line_number, offset, defined_only)
   -- Counting frame time for recursive functions is tricky.
   -- We have to crawl up the stack, and if we find the function or line that
   -- generated the frame time running higher up the stack, we have to subtract
@@ -147,10 +148,10 @@ local function clear_frame_time(time, callee_source_file, callee_line_number, of
   for j = stack.top - offset, 1, -1 do
     local framej = stack[j]
     local current_line_number = framej.current_line
-    if framej.source_file == callee_source_file and
+    if framej.func.source_file == callee_func.source_file and
        (framej.func.line_defined == callee_line_number or
         ((not defined_only) and (current_line_number == callee_line_number))) then
-      local current_line = framej.source_file.lines[current_line_number]
+      local current_line = get_line(current_line_number, framej) --framej.source_file.lines[current_line_number]
       current_line.child_time = current_line.child_time - time
       return true
     end
@@ -159,14 +160,14 @@ end
 
 
 local function play_return(callee, caller)
-  local current_line = caller.source_file.lines[caller.current_line]
+  current_line = get_line(caller.current_line, caller)
   if current_line then
     current_line.child_time = current_line.child_time + callee.frame_time
   end
 
   caller.frame_time = caller.frame_time + callee.frame_time
-  if not clear_frame_time(callee.frame_time, callee.source_file, callee.func.line_defined, 0) then
-    clear_frame_time(callee.frame_time, caller.source_file, caller.current_line, 1)
+  if not clear_frame_time(callee.frame_time, callee.func, callee.func.line_defined, 0) then
+    clear_frame_time(callee.frame_time, caller.func, caller.current_line, 1)
   end
 end
 
@@ -177,7 +178,7 @@ local function do_return()
       error_count = error_count + 1
       local top = get_top()
       io.stderr:write(("ERROR (%4d, line %7d): tried to return above end of stack from function defined at %s:%d-%d\n"):
-        format(error_count, trace_count, top and top.source_file.filename or "<no file>", top and top.line_defined or 0, top and top.last_line_defined or 0))
+        format(error_count, trace_count, top and top.func.source_file.filename or "<no file>", top and top.line_defined or 0, top and top.last_line_defined or 0))
       break
     else
       local callee = pop()
@@ -197,9 +198,8 @@ function profile.record(a, b, c, d)
 
   if a == "S" or a == ">" or a == "T" then      -- Start, call or tailcall
     local filename, line_defined, last_line_defined = b, c, d
-    local source_file = get_source_file(filename)
     local func = get_function(filename, line_defined, last_line_defined)
-    push{ source_file=source_file, func=func, frame_time=0, tailcall=(a=="T") or nil }
+    push{ func=func, frame_time=0, tailcall=(a=="T") or nil }
 
   elseif a == "<" then                          -- Return
     do_return()
@@ -219,7 +219,7 @@ function profile.record(a, b, c, d)
       error_count = error_count + 1
       local top = get_top()
       io.stderr:write(("ERROR (%4d, line %7d): tried to yield to unknown thread from function defined at %s:%d-%d\n"):
-        format(error_count, trace_count, top.source_file.filename, top.line_defined or 0, top.last_line_defined or 0))
+        format(error_count, trace_count, top.func.source_file.filename, top.line_defined or 0, top.last_line_defined or 0))
     else
       local thread = thread_top()
       -- unwind the thread from the stack
@@ -263,7 +263,7 @@ function profile.record(a, b, c, d)
         (line_number < top.func.line_defined or line_number > top.func.last_line_defined) then
         error_count = error_count + 1
         io.stderr:write(("ERROR (%4d, line %7d): counted execution of %g microseconds at line %d of a function defined at %s:%d-%d\n"):
-          format(error_count, trace_count, time, line_number, top.source_file.filename, top.func.line_defined, top.func.last_line_defined))
+          format(error_count, trace_count, time, line_number, top.func.source_file.filename, top.func.line_defined, top.func.last_line_defined))
       end
     end
 
@@ -274,7 +274,7 @@ function profile.record(a, b, c, d)
     line.self_time = line.self_time + time
     top.frame_time = top.frame_time + time
     if line_number ~= top.func.line_defined then
-      clear_frame_time(time, top.source_file, line_number, 1, true)
+      clear_frame_time(time, top.func, line_number, 1, true)
     end
     top.current_line = line_number
   end
