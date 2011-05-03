@@ -63,14 +63,46 @@ local function get_thread(thread_id)
 end
 
 
+local function get_top()
+  return stack[stack.top]
+end
+
+
+local function thread_top()
+  return thread_stack[thread_stack.top]
+end
+
+
+local function get_line(line_number, frame)
+  frame = frame or get_top()
+  local file = frame.func.source_file
+  local line = file.lines[line_number]
+  if not line then
+    line = { file=file, line_number=line_number, visits=0, self_time=0, child_time=0 }
+    file.lines[line_number] = line
+    lines[#lines+1] = line
+  end
+  return line
+end
+
+
 local function call(frame)
+  local top = get_top()
+  if top then
+    top.start_time = total_time
+    if top.current_line then
+      local line = top.current_line
+      top.self_time_at_start = line.self_time
+      top.child_time_at_start = line.child_time
+    end
+  end
   stack.top = stack.top + 1
   stack[stack.top] = frame
 end
 
 
 local function call_on_thread(frame)
-  local thread = thread_stack[thread_stack.top]
+  local thread = thread_top()
   thread.top = thread.top + 1
   thread[thread.top] = frame
 end
@@ -82,18 +114,8 @@ local function push_thread(thread)
 end
 
 
-local function get_top()
-  return stack[stack.top]
-end
-
-
-local function thread_top()
-  return thread_stack[thread_stack.top]
-end
-
-
 local function pop_thread()
-  local thread = thread_stack[thread_stack.top]
+  local thread = thread_top()
   thread_stack[thread_stack.top] = nil
   thread_stack.top = thread_stack.top - 1
   return thread
@@ -101,7 +123,7 @@ end
 
 
 local function replay_pop()
-  local frame = stack[stack.top]
+  local frame = get_top()
   stack[stack.top] = nil
   stack.top = stack.top - 1
   return frame
@@ -123,50 +145,13 @@ local function pop()
 end
 
 
-local function get_line(line_number, frame)
-  frame = frame or get_top()
-  local file = frame.func.source_file
-  local line = file.lines[line_number]
-  if not line then
-    line = { file=file, line_number=line_number, visits=0, self_time=0, child_time=0 }
-    file.lines[line_number] = line
-    lines[#lines+1] = line
-  end
-  return line
-end
-
-
-local function clear_frame_time(time, callee_func, callee_line_number, offset, defined_only)
-  -- Counting frame time for recursive functions is tricky.
-  -- We have to crawl up the stack, and if we find the function or line that
-  -- generated the frame time running higher up the stack, we have to subtract
-  -- the callee time from the higher function's child time (because we're going
-  -- to add the same time to the higher copy of the function later and we don't
-  -- want to add it twice)
-
-  for j = stack.top - offset, 1, -1 do
-    local framej = stack[j]
-    local current_line_number = framej.current_line.line_number
-    if framej.func.source_file == callee_func.source_file and
-       (framej.func.line_defined == callee_line_number or
-        ((not defined_only) and (current_line_number == callee_line_number))) then
-      local current_line = framej.current_line
-      current_line.child_time = current_line.child_time - time
-      return true
-    end
-  end
-end
-
-
 local function play_return(callee, caller)
-  local current_line = caller.current_line
-  if current_line then
-    current_line.child_time = current_line.child_time + callee.frame_time
-  end
-
-  caller.frame_time = caller.frame_time + callee.frame_time
-  if not clear_frame_time(callee.frame_time, callee.func, callee.func.line_defined, 0) then
-    clear_frame_time(callee.frame_time, caller.func, current_line.line_number, 1)
+  local time = total_time - caller.start_time
+  local line = caller.current_line
+  if line then
+    time = time + caller.self_time_at_start - line.self_time
+    time = time + caller.child_time_at_start - line.child_time
+    line.child_time = line.child_time + time
   end
 end
 
@@ -198,7 +183,7 @@ function profile.record(a, b, c, d)
   if a == "S" or a == ">" or a == "T" then      -- Start, call or tailcall
     local filename, line_defined, last_line_defined = b, c, d
     local func = get_function(filename, line_defined, last_line_defined)
-    local frame = { func=func, frame_time=0, tailcall=(a=="T") or nil }
+    local frame = { func=func, tailcall=(a=="T") or nil }
     call(frame)
     call_on_thread(frame)
 
@@ -210,7 +195,6 @@ function profile.record(a, b, c, d)
     local thread = get_thread(thread_id)
     -- replay the thread onto the stack
     for _, frame in ipairs(thread) do
-      frame.frame_time = 0
       call(frame)
     end
     push_thread(thread)
@@ -273,10 +257,6 @@ function profile.record(a, b, c, d)
       line.visits = line.visits + 1
     end
     line.self_time = line.self_time + time
-    top.frame_time = top.frame_time + time
-    if line_number ~= top.func.line_defined then
-      clear_frame_time(time, top.func, line_number, 1, true)
-    end
     top.current_line = line
   end
 end
