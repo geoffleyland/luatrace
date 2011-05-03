@@ -35,7 +35,7 @@ end
 local function get_source_file(filename)
   local source_file = source_files[filename]
   if not source_file then
-    source_file = { filename=filename, lines = {} }
+    source_file = { filename=filename, lines = {}, functions={} }
     source_files[filename] = source_file
   end
   return source_file
@@ -46,8 +46,23 @@ local function get_function(filename, line_defined, last_line_defined)
   local name = filename..":"..tostring(line_defined).."-"..tostring(last_line_defined)
   local f = functions[name]
   if not f then
-    f = { name=name, source_file=get_source_file(filename), line_defined=line_defined, last_line_defined=last_line_defined }
+    local sf = get_source_file(filename)
+    f = {
+      name=name,
+      source_file=sf,
+      line_defined=line_defined,
+      last_line_defined=last_line_defined,
+      visits=0,
+      self_time=0,
+      child_time=0,
+    }
     functions[name] = f
+    sff = sf.functions[line_defined]
+    if not sff then
+      sf.functions[line_defined] = { f }
+    else
+      sff[#sff+1] = f
+    end
   end
   return f
 end
@@ -89,15 +104,19 @@ end
 local function call(frame)
   local top = get_top()
   if top then
-    top.start_time = total_time
+    top.line_start_time = total_time
     if top.current_line then
       local line = top.current_line
-      top.self_time_at_start = line.self_time
-      top.child_time_at_start = line.child_time
+      top.line_self_time_at_start = line.self_time
+      top.line_child_time_at_start = line.child_time
     end
   end
   stack.top = stack.top + 1
   stack[stack.top] = frame
+  frame.func.visits = frame.func.visits + 1
+  frame.func_start_time = total_time
+  frame.func_self_time_at_start = frame.func.self_time
+  frame.func_child_time_at_start = frame.func.child_time
 end
 
 
@@ -146,13 +165,19 @@ end
 
 
 local function play_return(callee, caller)
-  local time = total_time - caller.start_time
+  local time = total_time - caller.line_start_time
   local line = caller.current_line
   if line then
-    time = time + caller.self_time_at_start - line.self_time
-    time = time + caller.child_time_at_start - line.child_time
+    time = time + caller.line_self_time_at_start - line.self_time
+    time = time + caller.line_child_time_at_start - line.child_time
     line.child_time = line.child_time + time
   end
+  
+  local func = callee.func
+  time = total_time - callee.func_start_time
+  time = time + callee.func_self_time_at_start - func.self_time
+  time = time + callee.func_child_time_at_start - func.child_time
+  func.child_time = math.max(0, func.child_time + time)
 end
 
 
@@ -257,6 +282,7 @@ function profile.record(a, b, c, d)
       line.visits = line.visits + 1
     end
     line.self_time = line.self_time + time
+    top.func.self_time = top.func.self_time + time
     top.current_line = line
   end
 end
@@ -304,6 +330,11 @@ local function write_annotated_source(sorted_source_files, formats)
     asf:write(header, f.filename, " - Times in ", formats.time_units, "\n")
     asf:write(("-"):rep(header:len() + formats.max_line_length), "\n")
     for i, l in ipairs(f.lines) do
+      if f.functions[i] then
+        for _, func in ipairs(f.functions[i]) do
+          asf:write(line_format:format(func.visits, (func.self_time+func.child_time) / formats.divisor, func.self_time / formats.divisor, func.child_time / formats.divisor, i, "-- Function totals"), "\n")
+        end
+      end
       if l.visits then
         asf:write(line_format:format(l.visits, (l.self_time+l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor, i, l.text), "\n")
       else
@@ -377,6 +408,9 @@ function profile.close()
 
   -- Report on the lines using the most time
   table.sort(lines, function(a, b) return a.self_time + a.child_time > b.self_time + b.child_time end)
+  local f2 = {}
+  for _, f in pairs(functions) do f2[#f2+1] = f end
+  table.sort(f2, function(a, b) return a.self_time > b.self_time end)
 
   local title_len = 9
   for i = 1, math.min(20, #lines) do
@@ -384,17 +418,34 @@ function profile.close()
     l.title = ("%s:%d"):format(l.file.filename, l.line_number)
     title_len = math.max(title_len, l.title:len())
   end
+  for i = 1, math.min(20, #f2) do
+    local f = f2[i]
+    f.title = ("%s:%d-%d"):format(f.source_file.filename, f.line_defined, f.last_line_defined)
+    title_len = math.max(title_len, f.title:len())
+  end
   local title_format = ("%%-%ds"):format(title_len)
 
   io.stderr:write(("Total time "..formats.n.time.." %s\n"):format(total_time / formats.divisor, formats.time_units))
   io.stderr:write("Times in ", formats.time_units, "\n")
 
   local function report_format(f) return title_format.."  "..f.visit.."  "..f.time.."  "..f.time.."  "..f.time.. " | %s\n" end
-  io.stderr:write(report_format(formats.s):format("File:line", "Visits", "Total", "Self", "Child", "Line"))
   line_format = report_format(formats.n)
 
+  io.stderr:write("Top 20 lines by total time\n")
+  io.stderr:write(report_format(formats.s):format("File:line", "Visits", "Total", "Self", "Child", "Line"))
   for i = 1, math.min(20, #lines) do
     local l = lines[i]
+    io.stderr:write(line_format:format(l.title, l.visits,
+      (l.self_time + l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor,
+      l.text or "-"))
+  end
+
+  io.stderr:write("\nTop 20 functions by self time\n")
+  io.stderr:write(report_format(formats.s):format("File:lines", "Visits", "Total", "Self", "Child", "Line"))
+  for i = 1, math.min(20, #f2) do
+    local l = f2[i]
+    local line = l.source_file.lines[l.line_defined]
+    l.text = line and line.text or nil
     io.stderr:write(line_format:format(l.title, l.visits,
       (l.self_time + l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor,
       l.text or "-"))
