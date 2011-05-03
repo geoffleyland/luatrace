@@ -52,7 +52,7 @@ local function get_function(filename, line_defined, last_line_defined)
       source_file=sf,
       line_defined=line_defined,
       last_line_defined=last_line_defined,
-      visits=0,
+      hits=0,
       self_time=0,
       child_time=0,
     }
@@ -93,7 +93,7 @@ local function get_line(line_number, frame)
   local file = frame.func.source_file
   local line = file.lines[line_number]
   if not line then
-    line = { file=file, line_number=line_number, visits=0, self_time=0, child_time=0 }
+    line = { file=file, line_number=line_number, hits=0, self_time=0, child_time=0 }
     file.lines[line_number] = line
     lines[#lines+1] = line
   end
@@ -113,7 +113,7 @@ local function call(frame)
   end
   stack.top = stack.top + 1
   stack[stack.top] = frame
-  frame.func.visits = frame.func.visits + 1
+  frame.func.hits = frame.func.hits + 1
   frame.func_start_time = total_time
   frame.func_self_time_at_start = frame.func.self_time
   frame.func_child_time_at_start = frame.func.child_time
@@ -279,7 +279,7 @@ function profile.record(a, b, c, d)
 
     local line = get_line(line_number)
     if top.current_line ~= line then
-      line.visits = line.visits + 1
+      line.hits = line.hits + 1
     end
     line.self_time = line.self_time + time
     top.func.self_time = top.func.self_time + time
@@ -320,9 +320,9 @@ end
 
 
 local function write_annotated_source(sorted_source_files, formats)
-  local function source_format(f) return f.visit.." "..f.time.." "..f.time.." "..f.time.." "..f.line_number.." | %s" end
+  local function source_format(f) return f.hit.." "..f.time.." "..f.time.." "..f.time.." "..f.line_number.." | %s" end
   local header_format = source_format(formats.s)
-  local header = header_format:format("Visits", "Total", "Self", "Child", "Line", "")
+  local header = header_format:format("Hits", "Total", "Self", "Child", "Line", "")
   local line_format = source_format(formats.n)
   local asf = io.open("annotated-source.txt", "w")
   for _, f in ipairs(sorted_source_files) do
@@ -332,11 +332,11 @@ local function write_annotated_source(sorted_source_files, formats)
     for i, l in ipairs(f.lines) do
       if f.functions[i] then
         for _, func in ipairs(f.functions[i]) do
-          asf:write(line_format:format(func.visits, (func.self_time+func.child_time) / formats.divisor, func.self_time / formats.divisor, func.child_time / formats.divisor, i, "-- Function totals"), "\n")
+          asf:write(line_format:format(func.hits, (func.self_time+func.child_time) / formats.divisor, func.self_time / formats.divisor, func.child_time / formats.divisor, i, "-- Function totals"), "\n")
         end
       end
-      if l.visits then
-        asf:write(line_format:format(l.visits, (l.self_time+l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor, i, l.text), "\n")
+      if l.hits then
+        asf:write(line_format:format(l.hits, (l.self_time+l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor, i, l.text), "\n")
       else
         asf:write(header_format:format(".", ".", ".", ".", tonumber(l.line_number), l.text), "\n")
       end
@@ -356,7 +356,7 @@ function profile.close()
   local all_lines = {}
 
   -- Work out the "most" of some numbers, so we can format reports better
-  local max_time, max_visits, max_line_number = 0, 0, 0
+  local max_time, max_hits, max_line_number = 0, 0, 0
   for _, l in ipairs(lines) do
     if l.child_time > total_time then
       error_count = error_count + 1
@@ -369,7 +369,7 @@ function profile.close()
     end
 
     max_time = math.max(max_time, l.self_time + l.child_time)
-    max_visits = math.max(max_visits, l.visits)
+    max_hits = math.max(max_hits, l.hits)
     max_line_number = math.max(max_line_number, l.line_number)
   end
 
@@ -401,7 +401,7 @@ function profile.close()
   end
 
   formats.n.time, formats.s.time = number_format("Child", time_format, max_time / formats.divisor)
-  formats.n.visit, formats.s.visit = number_format("Visits", "d", max_visits)
+  formats.n.hit, formats.s.hit = number_format("Hits", "d", max_hits)
   formats.n.line_number, formats.s.line_number = number_format("line", "d", max_line_number)
 
   write_annotated_source(sorted_source_files, formats)
@@ -428,25 +428,25 @@ function profile.close()
   io.stderr:write(("Total time "..formats.n.time.." %s\n"):format(total_time / formats.divisor, formats.time_units))
   io.stderr:write("Times in ", formats.time_units, "\n")
 
-  local function report_format(f) return title_format.."  "..f.visit.."  "..f.time.."  "..f.time.."  "..f.time.. " | %s\n" end
+  local function report_format(f) return title_format.."  "..f.hit.."  "..f.time.."  "..f.time.."  "..f.time.. " | %s\n" end
   line_format = report_format(formats.n)
 
   io.stderr:write("Top 20 lines by total time\n")
-  io.stderr:write(report_format(formats.s):format("File:line", "Visits", "Total", "Self", "Child", "Line"))
+  io.stderr:write(report_format(formats.s):format("File:line", "Hits", "Total", "Self", "Child", "Line"))
   for i = 1, math.min(20, #lines) do
     local l = lines[i]
-    io.stderr:write(line_format:format(l.title, l.visits,
+    io.stderr:write(line_format:format(l.title, l.hits,
       (l.self_time + l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor,
       l.text or "-"))
   end
 
   io.stderr:write("\nTop 20 functions by self time\n")
-  io.stderr:write(report_format(formats.s):format("File:lines", "Visits", "Total", "Self", "Child", "Line"))
+  io.stderr:write(report_format(formats.s):format("File:lines", "Hits", "Total", "Self", "Child", "Line"))
   for i = 1, math.min(20, #f2) do
     local l = f2[i]
     local line = l.source_file.lines[l.line_defined]
     l.text = line and line.text or nil
-    io.stderr:write(line_format:format(l.title, l.visits,
+    io.stderr:write(line_format:format(l.title, l.hits,
       (l.self_time + l.child_time) / formats.divisor, l.self_time / formats.divisor, l.child_time / formats.divisor,
       l.text or "-"))
   end
