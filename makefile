@@ -3,7 +3,8 @@ LUA_BINDIR= $(shell echo `dirname $(LUA)`)
 LUA_PREFIX= $(shell echo `dirname $(LUA_BINDIR)`)
 LUA_SHAREDIR=$(LUA_PREFIX)/share/lua/5.1
 LUA_LIBDIR=$(LUA_PREFIX)/lib/lua/5.1
-LUA_H= $(shell echo `find $(LUA_PREFIX)/include -name "lua.h"`)
+LUA_H:= $(shell echo `find $(LUA_PREFIX)/include -name "lua.h"`)
+LUA_H:= $(shell echo `echo $(LUA_H) | cut -f 1 -d \ `)
 LUA_INCDIR= $(shell echo `dirname $(LUA_H)`)
 
 CC=cc
@@ -15,19 +16,28 @@ ifneq (,$(findstring Darwin,$(UNAME)))
   # OS X
   CFLAGS:=$(CFLAGS) -fPIC -arch i686 -arch x86_64
   SHARED=-bundle -undefined dynamic_lookup
-  LIBS=
   SO_SUFFIX=so
 else
 ifneq (,$(findstring MINGW,$(UNAME)))
+  #MinGW
   CC=gcc
-  SHARED=-shared -L$(LUA_BINDIR) -llua51
+  SHARED=-shared
+  LIBS=-L$(LUA_BINDIR) -llua51
   SO_SUFFIX=dll
 else
+ifneq (,$(findstring Linux,$(UNAME)))
   # Linux
   CFLAGS:=$(CFLAGS) -fPIC
-  SHARED=-shared -llua
-  LIBS=-lcstring
+  SHARED=-shared
+  LIBS=-L$(LUA_LIBDIR) -llua -lcstring
   SO_SUFFIX=so
+else
+  # BSD
+  CFLAGS:=$(CFLAGS) -fPIC
+  SHARED=-shared
+  LIBS=-L$(LUA_LIBDIR) -llua
+  SO_SUFFIX=so
+endif
 endif
 endif
 
