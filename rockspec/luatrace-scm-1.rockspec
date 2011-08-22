@@ -25,5 +25,5 @@ build =
     ["uatrace.profile"] = "lua/uatrace/profile.lua",
     ["luatrace.c_hook"] = "c/c_hook.c",
   },
-  install = { bin = { ["luatrace.profile"] = "sh/luatrace.profile" } },
+  install = { bin = { "sh/luatrace.profile" } },
 }
