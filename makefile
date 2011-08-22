@@ -3,7 +3,8 @@ LUA_BINDIR= $(shell echo `dirname $(LUA)`)
 LUA_PREFIX= $(shell echo `dirname $(LUA_BINDIR)`)
 LUA_SHAREDIR=$(LUA_PREFIX)/share/lua/5.1
 LUA_LIBDIR=$(LUA_PREFIX)/lib/lua/5.1
-LUA_INCDIR=$(LUA_PREFIX)/include
+LUA_H= $(shell echo `find $(LUA_PREFIX)/include -name "lua.h"`)
+LUA_INCDIR= $(shell echo `dirname $(LUA_H)`)
 
 CC=cc
 CFLAGS=-O3 -Wall
