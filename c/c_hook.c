@@ -9,6 +9,11 @@ typedef uint64_t hook_time_t;
 #include <time.h>
 typedef long hook_time_t;
 #define CLOCK_FUNCTION lclock
+#ifdef CLOCK_MONOTONIC_RAW
+#define LINUX_CLOCK CLOCK_MONOTONIC_RAW
+#else
+#define LINUX_CLOCK CLOCK_MONOTONIC
+#endif
 #elif _WIN32
 #include <windows.h>
 typedef long long hook_time_t;
@@ -44,7 +49,7 @@ static void get_microseconds_info(void)
 static hook_time_t lclock()
 {
   struct timespec tp;
-  clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+  clock_gettime(LINUX_CLOCK, &tp);
   return tp.tv_sec * 1000000000L + tp.tv_nsec;
 }
 #elif _WIN32

@@ -29,7 +29,7 @@ ifneq (,$(findstring Linux,$(UNAME)))
   # Linux
   CFLAGS:=$(CFLAGS) -fPIC
   SHARED=-shared
-  LIBS=-L$(LUA_LIBDIR) -llua -lcstring
+  LIBS=-lrt
   SO_SUFFIX=so
 else
   # BSD
