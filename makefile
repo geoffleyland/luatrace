@@ -7,7 +7,7 @@ LUA_H:= $(shell echo `find $(LUA_PREFIX)/include -name "lua.h"`)
 LUA_H:= $(shell echo `echo $(LUA_H) | cut -f 1 -d \ `)
 LUA_INCDIR= $(shell echo `dirname $(LUA_H)`)
 
-CC=cc
+CC=/usr/bin/cc
 CFLAGS=-O3 -Wall
 
 # Guess a platform
@@ -47,6 +47,7 @@ lua/luatrace/c_hook.$(SO_SUFFIX): c/c_hook.c
 install: lua/luatrace/c_hook.$(SO_SUFFIX)
 	mkdir -p $(LUA_SHAREDIR)/luatrace
 	mkdir -p $(LUA_SHAREDIR)/uatrace
+	mkdir -p $(LUA_SHAREDIR)/jit
 	mkdir -p $(LUA_LIBDIR)/luatrace
 	cp lua/luatrace.lua $(LUA_SHAREDIR)
 	cp lua/uatrace.lua $(LUA_SHAREDIR)
@@ -55,6 +56,7 @@ install: lua/luatrace/c_hook.$(SO_SUFFIX)
 	-cp lua/luatrace/c_hook.so $(LUA_LIBDIR)/luatrace
 	cp sh/luatrace.profile $(LUA_BINDIR)
 	chmod +x $(LUA_BINDIR)/luatrace.profile
+	cp lua/annotate.lua $(LUA_SHAREDIR)/jit
 
 uninstall: 
 	rm -f $(LUA_SHAREDIR)/luatrace.lua
@@ -64,6 +66,7 @@ uninstall:
 	-rm -rf $(LUA_LIBDIR)/luatrace
 	rm -f $(LUA_BINDIR)/luaprofile
 	rm -f $(LUA_BINDIR)/luatrace.profile
+	rm -f $(LUA_SHAREDIR)/jit/annotate.lua
 
 clean:
 	rm -f lua/luatrace/c_hook.so

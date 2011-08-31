@@ -42,6 +42,7 @@ function trace_callbacks.start(tr, func, pc, otr, oex)
   traces[tr][#traces[tr]+1] = t
 end
 
+
 function trace_callbacks.stop(tr)
   local t = traces[tr][#traces[tr]]
   t.status = true
@@ -51,6 +52,7 @@ function trace_callbacks.stop(tr)
     t.stop = t.start
   end
 end
+
 
 function trace_callbacks.abort(tr, func, pc, code, reason)
   local t = traces[tr][#traces[tr]]
@@ -87,10 +89,17 @@ end
 
 -- Reporting -------------------------------------------------------------------
 
+local reported, active
+
 local function annotate_report()
+  if reported then return end
+  reported = true
+
   -- Turn our callbacks off, otherwise we collect information on annotate_report!
-  jit.attach(annotate_trace)
-  jit.attach(annotate_record)
+  if active then
+    jit.attach(annotate_trace)
+    jit.attach(annotate_record)
+  end
 
   -- Run through all the traces we collected matching up all the duplicates.
   local trace_map = {}
@@ -135,7 +144,6 @@ local function annotate_report()
       end
     end
   end
-
 
   -- Run through all the traces counting bytecodes and lines by result
   local results, result_map = {}, {}
@@ -322,15 +330,26 @@ local function annotate_report()
     end
     io.stdout:write(("-"):rep(100), "\n")
   end
+
+  if active then
+    jit.attach(annotate_trace, "trace")
+    jit.attach(annotate_record, "record")
+  end
 end
 
 
-------------------------------------------------------------------------------
+-- Control ---------------------------------------------------------------------
 
 local function annotate_off()
+  active = false
+
+  jit.attach(annotate_trace)
+  jit.attach(annotate_record)
 end
 
 local function annotate_on(opt, outfile)
+  active, reported = true, false
+
   jit.attach(annotate_trace, "trace")
   jit.attach(annotate_record, "record")
 
@@ -347,3 +366,6 @@ on = annotate_on
 off = annotate_off
 start = annotate_on -- For -j command line option.
 report = annotate_report
+
+-- EOF -------------------------------------------------------------------------
+
