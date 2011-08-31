@@ -137,7 +137,7 @@ function trace_file.read(settings)
     elseif l1:match("[<YPE]") then
       recorder.record(l1)
     else
-      local line, time = l:match("(%d+) (%d+\.*%d*)")
+      local line, time = l:match("(%d+) (%d+%.*%d*)")
       if line then
         recorder.record(tonumber(line), tonumber(time))
       end
