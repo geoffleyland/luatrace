@@ -24,7 +24,7 @@ build =
     uatrace = "lua/uatrace.lua",
     ["uatrace.profile"] = "lua/uatrace/profile.lua",
     ["luatrace.c_hook"] = "c/c_hook.c",
-    ["jit.annotate"] = "lua/annotate.lua",
+    ["jit.annotate"] = "lua/jit/annotate.lua",
   },
   install = { bin = { "sh/luatrace.profile" } },
 }

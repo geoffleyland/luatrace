@@ -56,7 +56,7 @@ install: lua/luatrace/c_hook.$(SO_SUFFIX)
 	-cp lua/luatrace/c_hook.so $(LUA_LIBDIR)/luatrace
 	cp sh/luatrace.profile $(LUA_BINDIR)
 	chmod +x $(LUA_BINDIR)/luatrace.profile
-	cp lua/annotate.lua $(LUA_SHAREDIR)/jit
+	cp lua/jit/annotate.lua $(LUA_SHAREDIR)/jit
 
 uninstall: 
 	rm -f $(LUA_SHAREDIR)/luatrace.lua
