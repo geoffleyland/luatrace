@@ -111,3 +111,107 @@ See [the Lua Wiki](http://lua-users.org/wiki/ProfilingLuaCode) for a list of pro
 [luacov](http://luacov.luaforge.net/) provides coverage analysis.
 
 
+# `-jannotate` - Annotate code with LuaJIT trace information
+
+## 1. What?
+
+`annotate.lua` collects information about the traces LuaJIT is attempting and
+summarises than information in a format that doesn't contain as much information
+as `-jdump`, but which might be more useful for you.
+
+`annotate.lua` is installed with luatrace.
+To use it, `luajit -jannotate mylua.lua`.
+When you program exits, it will write a report to stdout detailing how many
+traces were attempted, how many were successful and how many were aborted.
+For the aborted traces, you'll get summaries of the reasons for the aborts,
+and the lines that cause the aborts.
+
+The report then lists bytecode for all the traces next to the source code.
+This listing is a little problematic, since bytecode order doesn't necessarily
+match source order, and traces cross function boundaries.
+The traces are listed in source order as much as practicable to make them easier
+to read.
+
+If you want to write the report to a separate file, then `luajit -jannotate=report.txt`.
+
+You can also use annotate.lua as a module:
+
+    local annotate = require("jit.annotate")
+    annotate.on()
+    ...
+    annotate.off()
+    annotate.report(io.open("report.txt", "w"))
+
+## 2. Requirements
+
+LuaJIT (this won't work with plain Lua)
+
+## 3. Wishlist
+
++ It'd be nice to incorporate timing information from a profiler
+
+## 4. Alternatives
+
+`-jdump`, `-jbc`, `-jv` etc
+
+
+# LuaJIT trace API
+
+`-jannotate` uses some internal LuaJIT APIs.
+These are not intended for public use, and are subject to change without notice,
+however, here's some of what I've managed to learn.
+What follows is a bit rough, inaccurate, and very incomplete.
+These functions are used in several of the -j library files.
+`dump.lua` is probably a good place to start if you're looking for more information
+
+## jit.attach
+
+You can attach callbacks to a number of compiler events with `jit.attach`.  The callback can be called:
+
+- when a function has been compiled to bytecode ("bc");
+- when trace recording starts or stops ("trace");
+- as a trace is being recorded ("record");
+- or when a trace exits through a side exit ("texit").
+
+Set a callback with `jit.attach(callback, "event")` and clear the same callback with `jit.attach(callback)`
+
+The arguments passed to the callback depend on the event being reported:
+
+- "bc": `callback(func)`. `func` is the function that's just been recorded.
+- "trace": `callback(what, tr, func, pc, otr, oex)`
+    - `what` is a description of the trace event: "flush", "start", "stop", "abort".  Available for all events.
+    - `tr` is the trace number.  Not available for flush.
+    - `func` is the function being traced.  Available for start and abort.
+    - `pc` is the program counter - the bytecode number of the function being recorded (if this a Lua function).  Available for start and abort.
+    - `otr` start: the parent trace number if this is a side trace, abort: abort code (integer)?
+    - `oex` start: the exit number for the parent trace, abort: abort reason (string) 
+- "record": `callback(tr, func, pc, depth)`. The first arguments are the same as for trace start. `depth` is the depth of the inlining of the current bytecode.
+- "texit": `callback(tr, ex, ngpr, nfpr)`.
+    - `tr` is the trace number as before
+    - `ex` is the exit number
+    - `ngpr` and `nfpr` are the number of general-purpose and floating point registers that are active at the exit.
+
+
+## jit.util.funcinfo(func, pc)
+
+When passed `func` and `pc` from a `jit.attach` callback,
+`jit.util.funcinfo` returns a table of information about the function,
+much like `debug.getinfo`.
+
+The fields of the table are:
+
+- `linedefined`: as for `debug.getinfo`
+- `lastlinedefined`: as for `debug.getinfo`
+- `params`: the number of parameters the function takes
+- `stackslots`: the number of stack slots the function's local variable use
+- `upvalues`: the number of upvalues the function uses
+- `bytecodes`: the number of bytecodes it the compiled function
+- `gcconsts`: ??
+- `nconsts`: ??
+- `currentline`: as for `debug.getinfo`
+- `isvararg`: if the function is a vararg function`
+- `source`: as for `debug.getinfo`
+- `loc`: a string describing the source and currentline, like "&lt;source&gt;:&lt;line&gt;"
+- `ffid`: the fast function id of the function (if it is one).  In this case only `upvalues` above and `addr` below are valid
+- `addr`: the address of the function (if it is not a Lua function).  If it's a C function rather than a fast function, only `upvalues` above is valid
+
