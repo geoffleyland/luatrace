@@ -92,7 +92,88 @@ local function annotate_record(tr, func, pc, depth)
 end
 
 
--- Reporting -------------------------------------------------------------------
+-- Reporting functions ---------------------------------------------------------
+
+local function remove_duplicate_traces(traces)
+  local trace_map = {}
+  local new_traces = {}
+
+  for i, t in ipairs(traces) do
+    for j, tr in ipairs(t) do
+      -- Our first guess is if the start and end lines are different, then it's
+      -- a different trace.
+      local name = ("%s:%d-%s:%d"):
+        format(tr.start.source, tr.start.currentline, tr.stop.source, tr.stop.currentline)
+      tr.name = name
+      if not trace_map[name] then
+        tr.attempts = 1
+        trace_map[name] = { tr }
+        new_traces[#new_traces+1] = tr
+      else
+        -- BUT it might be possible that two traces that start and end in the
+        -- same place have different bytecodes if they specialise on different
+        -- types, so we have to compare bytecodes
+        local same_as_any = false
+        for _, tr2 in ipairs(trace_map[name]) do
+          local same = #tr.bytecode == #tr2.bytecode
+          if #tr.bytecode == #tr2.bytecode then
+            for i, b in ipairs(tr.bytecode) do
+              if b.bc ~= tr2.bytecode[i].bc then
+                same = false
+                break
+              end
+            end
+          end
+          if same then
+            tr2.attempts = tr2.attempts + 1
+            same_as_any = true
+            break
+          end
+        end
+        if not same_as_any then
+          trace_map[name][#trace_map[name]+1] = tr
+          new_traces[#new_traces+1] = tr
+          tr.attempts = 1
+        end
+      end
+    end
+  end
+
+  return new_traces
+end
+
+
+local function load_source_files(traces)
+  local source_map = {}
+
+  for i, tr in ipairs(traces) do
+    source_map[tr.start.source] = true
+    source_map[tr.stop.source] = true
+    for k, b in ipairs(tr.bytecode) do
+      if b.info.source then
+        source_map[b.info.source] = true
+      end
+    end
+  end
+  for source in pairs(source_map) do
+    filename = source:sub(2,-1)
+    local f = io.open(filename, "r")
+    if f then
+      local lines = {}
+      local lc = 0
+      for l in f:lines() do
+        lc = lc + 1
+        lines[lc] = l
+      end
+      source_map[source] = lines
+    else
+      source_map[source] = nil
+    end
+  end
+  
+  return source_map
+end
+
 
 local function count_trace_results(traces, status_func)
   -- Run through all the traces counting bytecodes and lines by result
@@ -169,6 +250,8 @@ local function report_summary(file, results, result_map, total)
 end
 
 
+-- Reporting -------------------------------------------------------------------
+
 local reported, active
 
 local function annotate_report()
@@ -181,58 +264,17 @@ local function annotate_report()
     jit.attach(annotate_record)
   end
 
-  -- Run through all the traces we collected matching up all the duplicates.
-  local trace_map = {}
-  local new_traces = {}
-
-  for i, t in ipairs(traces) do
-    for j, tr in ipairs(t) do
-      -- Our first guess is if the start and end lines are different, then it's
-      -- a different trace.
-      local name = ("%s:%d-%s:%d"):format(tr.start.source, tr.start.currentline, tr.stop.source, tr.stop.currentline)
-      tr.name = name
-      if not trace_map[name] then
-        tr.attempts = 1
-        trace_map[name] = { tr }
-        new_traces[#new_traces+1] = tr
-      else
-        -- BUT it might be possible that two traces that start and end in the
-        -- same place have different bytecodes if they specialise on different
-        -- types, so we have to compare bytecodes
-        local same_as_any = false
-        for _, tr2 in ipairs(trace_map[name]) do
-          local same = #tr.bytecode == #tr2.bytecode
-          if #tr.bytecode == #tr2.bytecode then
-            for i, b in ipairs(tr.bytecode) do
-              if b.bc ~= tr2.bytecode[i].bc then
-                same = false
-                break
-              end
-            end
-          end
-          if same then
-            tr2.attempts = tr2.attempts + 1
-            same_as_any = true
-            break
-          end
-        end
-        if not same_as_any then
-          trace_map[name][#trace_map[name]+1] = tr
-          new_traces[#new_traces+1] = tr
-          tr.attempts = 1
-        end
-      end
-    end
-  end
+  traces = remove_duplicate_traces(traces)
+  local source_map = load_source_files(traces)
 
   io.stdout:write("\nTRACE SUMMARY\n=============\n")
   -- Report first by abort reason
-  local results, result_map, total = count_trace_results(new_traces,
+  local results, result_map, total = count_trace_results(traces,
       function(tr) return tr.status and "Success" or tr.abort.reason end)
   report_summary(io.stdout, results, result_map, total)
 
   -- And then by abort line
-  local results, result_map, total = count_trace_results(new_traces,
+  local results, result_map, total = count_trace_results(traces,
       function(tr)
         if tr.status then
           return "Success"
@@ -243,7 +285,7 @@ local function annotate_report()
   report_summary(io.stdout, results, result_map, total)
 
   -- Organise the traces into blocks
-  for i, tr in ipairs(new_traces) do
+  for i, tr in ipairs(traces) do
     local current_function
     local blocks = {}
     for _, b in ipairs(tr.bytecode) do
@@ -275,43 +317,15 @@ local function annotate_report()
     tr.blocks = blocks
   end
 
-  for i, tr in ipairs(new_traces) do
+  for i, tr in ipairs(traces) do
     for j, bl in ipairs(tr.blocks) do
       table.sort(bl.lines, function(a, b) return a.number < b.number end)
     end
   end
 
-  -- Find all the files that we traced through
-  local file_map = {}
-  for i, tr in ipairs(new_traces) do
-    file_map[tr.start.source] = true
-    file_map[tr.stop.source] = true
-    for k, b in ipairs(tr.bytecode) do
-      if b.info.source then
-        file_map[b.info.source] = true
-      end
-    end
-  end
-  for source in pairs(file_map) do
-    filename = source:sub(2,-1)
-    local f = io.open(filename, "r")
-    if f then
-      local lines = {}
-      local lc = 0
-      for l in f:lines() do
-        lc = lc + 1
-        lines[lc] = l
-      end
-      file_map[source] = lines
-    else
-      file_map[source] = nil
-    end
-  end
-
-
-  -- Run through all the traces counting bytecodes and collecting statistics
+  -- How long is the longest bytecode line?
   local bclen = 0
-  for i, tr in ipairs(new_traces) do
+  for i, tr in ipairs(traces) do
     for k, b in ipairs(tr.bytecode) do
       if #b.bc > bclen then bclen = #b.bc end
     end
@@ -319,7 +333,7 @@ local function annotate_report()
   local bc_format = ("%%-%ds"):format(bclen)
 
   io.stdout:write("TRACES\n======\n")
-  for i, tr in ipairs(new_traces) do
+  for i, tr in ipairs(traces) do
     io.stdout:write("\n")
     if tr.status then
       io.stdout:write(("Trace #%d"):format(tr.number))
@@ -334,7 +348,7 @@ local function annotate_report()
         for k = bl.linedefined, bl.first_line - 1 do
           io.stdout:write(bc_format:format(" "))
           io.stdout:write((" | %4d"):format(k))
-          io.stdout:write((" | %s\n"):format(file_map[bl.source][k]))
+          io.stdout:write((" | %s\n"):format(source_map[bl.source][k]))
         end
       end
       for k, line in ipairs(bl.lines) do
@@ -342,7 +356,7 @@ local function annotate_report()
           io.stdout:write(bc_format:format(b))
           if l == 1 then
             io.stdout:write((" | %4d"):format(line.number))
-            io.stdout:write((" | %s\n"):format(file_map[bl.source][line.number]))
+            io.stdout:write((" | %s\n"):format(source_map[bl.source][line.number]))
           else
             io.stdout:write(" |    . |\n")
           end
@@ -352,7 +366,7 @@ local function annotate_report()
         for k = bl.last_line + 1, bl.lastlinedefined do
           io.stdout:write(bc_format:format(" "))
           io.stdout:write((" | %4d"):format(k))
-          io.stdout:write((" | %s\n"):format(file_map[bl.source][k]))
+          io.stdout:write((" | %s\n"):format(source_map[bl.source][k]))
         end
       end
     end
