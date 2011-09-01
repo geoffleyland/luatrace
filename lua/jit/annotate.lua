@@ -256,26 +256,25 @@ end
 
 -- Reporting -------------------------------------------------------------------
 
-local reported, active
+local reported, active, start_report_file
 
-local function annotate_report()
-  if reported then return end
-  reported = true
-
+local function annotate_report(report_file)
   -- Turn our callbacks off, otherwise we collect information on annotate_report!
   if active then
     jit.attach(annotate_trace)
     jit.attach(annotate_record)
   end
 
+  report_file = report_file or start_report_file or io.stdout
+
   traces = remove_duplicate_traces(traces)
   local source_map = load_source_files(traces)
 
-  io.stdout:write("\nTRACE SUMMARY\n=============\n")
+  report_file:write("\nTRACE SUMMARY\n=============\n")
   -- Report first by abort reason
   local results, result_map, total = count_trace_results(traces,
       function(tr) return tr.status and "Success" or tr.abort.reason end)
-  report_summary(io.stdout, results, result_map, total)
+  report_summary(report_file, results, result_map, total)
 
   -- And then by abort line
   local results, result_map, total = count_trace_results(traces,
@@ -291,7 +290,7 @@ local function annotate_report()
           r.line = source_map[tr.abort.info.source][tr.abort.info.currentline]
         end
       end)
-  report_summary(io.stdout, results, result_map, total, true)
+  report_summary(report_file, results, result_map, total, true)
 
   -- Organise the traces into blocks
   for i, tr in ipairs(traces) do
@@ -341,49 +340,53 @@ local function annotate_report()
   end
   local bc_format = ("%%-%ds"):format(bclen)
 
-  io.stdout:write("TRACES\n======\n")
+  report_file:write("TRACES\n======\n")
   for i, tr in ipairs(traces) do
-    io.stdout:write("\n")
+    report_file:write("\n")
     if tr.status then
-      io.stdout:write(("Trace #%d"):format(tr.number))
+      report_file:write(("Trace #%d"):format(tr.number))
     else
-      io.stdout:write(("Aborted trace - %s"):format(tostring(tr.abort.reason)))
+      report_file:write(("Aborted trace - %s"):format(tostring(tr.abort.reason)))
     end
-    io.stdout:write((" (%d lines, %d bytecodes, %d attempts)"):format(tr.linecount, #tr.bytecode, tr.attempts))
-    io.stdout:write("\n")
+    report_file:write((" (%d lines, %d bytecodes, %d attempts)"):format(tr.linecount, #tr.bytecode, tr.attempts))
+    report_file:write("\n")
     for j, bl in ipairs(tr.blocks) do
-      io.stdout:write(bc_format:format(" "), " | ", ("%s:%d-%d\n"):format(bl.source:sub(2,-1), bl.first_line, bl.last_line))
+      report_file:write(bc_format:format(" "), " | ", ("%s:%d-%d\n"):format(bl.source:sub(2,-1), bl.first_line, bl.last_line))
       if j == 1 and bl.linedefined >= bl.first_line - 5 then
         for k = bl.linedefined, bl.first_line - 1 do
-          io.stdout:write(bc_format:format(" "))
-          io.stdout:write((" | %4d"):format(k))
-          io.stdout:write((" | %s\n"):format(source_map[bl.source][k]))
+          report_file:write(bc_format:format(" "))
+          report_file:write((" | %4d"):format(k))
+          report_file:write((" | %s\n"):format(source_map[bl.source][k]))
         end
       end
       for k, line in ipairs(bl.lines) do
         for l, b in ipairs(line.bytecode) do
-          io.stdout:write(bc_format:format(b))
+          report_file:write(bc_format:format(b))
           if l == 1 then
-            io.stdout:write((" | %4d"):format(line.number))
-            io.stdout:write((" | %s\n"):format(source_map[bl.source][line.number]))
+            report_file:write((" | %4d"):format(line.number))
+            report_file:write((" | %s\n"):format(source_map[bl.source][line.number]))
           else
-            io.stdout:write(" |    . |\n")
+            report_file:write(" |    . |\n")
           end
         end
       end
       if j == #tr.blocks and bl.lastlinedefined <= bl.last_line + 5 then
         for k = bl.last_line + 1, bl.lastlinedefined do
-          io.stdout:write(bc_format:format(" "))
-          io.stdout:write((" | %4d"):format(k))
-          io.stdout:write((" | %s\n"):format(source_map[bl.source][k]))
+          report_file:write(bc_format:format(" "))
+          report_file:write((" | %4d"):format(k))
+          report_file:write((" | %s\n"):format(source_map[bl.source][k]))
         end
       end
     end
     if not tr.status then
-      io.stdout:write("Aborted - ", tr.abort.reason, "\n")
+      report_file:write("Aborted - ", tr.abort.reason, "\n")
     end
-    io.stdout:write(("-"):rep(100), "\n")
+    report_file:write(("-"):rep(100), "\n")
   end
+
+  report_file:flush()
+
+  reported = true
 
   if active then
     jit.attach(annotate_trace, "trace")
@@ -401,7 +404,13 @@ local function annotate_off()
   jit.attach(annotate_record)
 end
 
-local function annotate_on(opt, outfile)
+
+local function shutdown()
+  if not reported then annotate_report() end
+end
+
+
+local function annotate_on()
   active, reported = true, false
 
   jit.attach(annotate_trace, "trace")
@@ -409,16 +418,23 @@ local function annotate_on(opt, outfile)
 
   if not jit_annotate_shutdown then
     jit_annotate_shutdown = newproxy(true)
-    getmetatable(jit_annotate_shutdown).__gc = annotate_report
+    getmetatable(jit_annotate_shutdown).__gc = shutdown
   end
 end
+
+
+local function annotate_start(outfile)
+  if outfile then start_report_file = assert(io.open(outfile, "w")) end
+  annotate_on()
+end
+
 
 -- Public module functions.
 module(...)
 
 on = annotate_on
 off = annotate_off
-start = annotate_on -- For -j command line option.
+start = annotate_start -- For -j command line option.
 report = annotate_report
 
 
