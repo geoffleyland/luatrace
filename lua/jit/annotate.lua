@@ -175,7 +175,7 @@ local function load_source_files(traces)
 end
 
 
-local function count_trace_results(traces, status_func)
+local function count_trace_results(traces, status_func, result_func)
   -- Run through all the traces counting bytecodes and lines by result
   local results, result_map = {}, {}
   for i, tr in ipairs(traces) do
@@ -192,6 +192,7 @@ local function count_trace_results(traces, status_func)
     local status = status_func(tr)
     if not result_map[status] then
       local r = { status=status, traces=0, bytecodes=0, lines=0 }
+      if result_func then result_func(tr, r) end
       result_map[status] = r
       results[#results+1] = r
     end
@@ -216,36 +217,39 @@ local function count_trace_results(traces, status_func)
 end
 
 
-local function report_summary(file, results, result_map, total)
+local function report_summary(file, results, result_map, total, show_lines)
   local status_length = 0
   for _, r in ipairs(results) do
     status_length = math.max(status_length, #r.status)
   end
 
-  local header_format = "%-"..status_length.."s\t%15s\t%15s\t%15s\n"
-  local line_format = "%-"..status_length.."s\t%8d (%3d%%)\t%8d (%3d%%)\t%8d (%3d%%)\n"
+  local header_format = "%-"..status_length.."s\t%15s\t%15s\t%15s"
+  local line_format = "%-"..status_length.."s\t%8d (%3d%%)\t%8d (%3d%%)\t%8d (%3d%%)"
+  
+  header_format = header_format..(show_lines and "\t%s\n" or "\n")
+  line_format = line_format..(show_lines and "\t%s\n" or "\n")
 
-  file:write(header_format:format("Trace Status", "Traces", "Bytecodes", "Lines"))
-  file:write(header_format:format("------------", "------", "---------", "-----"))
+  file:write(header_format:format("Trace Status", "Traces", "Bytecodes", "Lines", "Line"))
+  file:write(header_format:format("------------", "------", "---------", "-----", "----"))
   local function rline1(...)
     file:write(line_format:format(...))
   end
-  local function rline2(k, a, b, c)
-    rline1(k, a, a / total.traces * 100, b, b / total.bytecodes * 100, c, c / total.lines * 100)
+  local function rline2(k, a, b, c, line)
+    rline1(k, a, a / total.traces * 100, b, b / total.bytecodes * 100, c, c / total.lines * 100, line or "")
   end
   local function rline3(k)
     local r = result_map[k]
-    rline2(k, r.traces, r.bytecodes, r.lines)
+    rline2(k, r.traces, r.bytecodes, r.lines, r.line)
   end
   rline3("Success")
   for i, r in ipairs(results) do
     if r.status ~= "Success" then rline3(r.status) end
   end
   local D = "-"
-  file:write(header_format:format(D:rep(status_length), D:rep(15), D:rep(15), D:rep(15)))
+  file:write(header_format:format(D:rep(status_length), D:rep(15), D:rep(15), D:rep(15), ""))
   rline2("Total", total.traces, total.bytecodes, total.lines)
   D = "="
-  file:write(header_format:format(D:rep(status_length), D:rep(15), D:rep(15), D:rep(15)))
+  file:write(header_format:format(D:rep(status_length), D:rep(15), D:rep(15), D:rep(15), ""))
   file:write("\n")
 end
 
@@ -281,8 +285,13 @@ local function annotate_report()
         else
           return ("%s:%d (%s)"):format(tr.abort.info.source, tr.abort.info.currentline, tr.abort.reason)
         end
+      end,
+      function(tr, r)
+        if not tr.status then
+          r.line = source_map[tr.abort.info.source][tr.abort.info.currentline]
+        end
       end)
-  report_summary(io.stdout, results, result_map, total)
+  report_summary(io.stdout, results, result_map, total, true)
 
   -- Organise the traces into blocks
   for i, tr in ipairs(traces) do
