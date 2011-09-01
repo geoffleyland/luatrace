@@ -282,7 +282,7 @@ local function annotate_report(report_file)
         if tr.status then
           return "Success"
         else
-          return ("%s:%d (%s)"):format(tr.abort.info.source, tr.abort.info.currentline, tr.abort.reason)
+          return ("%s:%d (%s)"):format(tr.abort.info.source:sub(2,-1), tr.abort.info.currentline, tr.abort.reason)
         end
       end,
       function(tr, r)
