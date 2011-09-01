@@ -56,7 +56,12 @@ end
 
 function trace_callbacks.abort(tr, func, pc, code, reason)
   local t = traces[tr][#traces[tr]]
-  t.abort = { info=jit.util.funcinfo(func, pc), code=code, reason=fmterr(code, reason) }
+  local reason=fmterr(code, reason)
+  reason = reason:gsub("bytecode (%d+)", function(c)
+    c = tonumber(c) * 6
+    return "bytecode "..vmdef.bcnames:sub(c, c+6):gsub(" ", "")
+    end)
+  t.abort = { info=jit.util.funcinfo(func, pc), code=code, reason=reason }
   t.stop = t.abort.info
 end
 
