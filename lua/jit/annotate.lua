@@ -89,7 +89,7 @@ end
 
 -- Reporting -------------------------------------------------------------------
 
-local function count_trace_results(traces)
+local function count_trace_results(traces, status_func)
   -- Run through all the traces counting bytecodes and lines by result
   local results, result_map = {}, {}
   for i, tr in ipairs(traces) do
@@ -103,7 +103,7 @@ local function count_trace_results(traces)
         end
       end
     end
-    local status = tr.status and "Success" or tostring(tr.abort.reason)
+    local status = status_func(tr)
     if not result_map[status] then
       local r = { status=status, traces=0, bytecodes=0, lines=0 }
       result_map[status] = r
@@ -115,6 +115,8 @@ local function count_trace_results(traces)
     r.lines = r.lines + linecount
     tr.linecount = linecount
   end
+
+  table.sort(results, function(a, b) return a.bytecodes > b.bytecodes end)
 
   -- Add up the totals
   local total = { traces=0, bytecodes=0, lines=0 }
@@ -219,7 +221,20 @@ local function annotate_report()
   end
 
   io.stdout:write("\nTRACE SUMMARY\n=============\n")
-  local results, result_map, total = count_trace_results(new_traces)
+  -- Report first by abort reason
+  local results, result_map, total = count_trace_results(new_traces,
+      function(tr) return tr.status and "Success" or tr.abort.reason end)
+  report_summary(io.stdout, results, result_map, total)
+
+  -- And then by abort line
+  local results, result_map, total = count_trace_results(new_traces,
+      function(tr)
+        if tr.status then
+          return "Success"
+        else
+          return ("%s:%d (%s)"):format(tr.abort.info.source, tr.abort.info.currentline, tr.abort.reason)
+        end
+      end)
   report_summary(io.stdout, results, result_map, total)
 
   -- Organise the traces into blocks
