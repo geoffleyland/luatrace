@@ -414,7 +414,14 @@ end
 
 
 local function shutdown()
+  annotate_off()
   if not reported then annotate_report() end
+end
+
+local rawexit = os.exit
+local function exit(...)
+  shutdown()
+  rawexit(...)
 end
 
 
@@ -427,6 +434,7 @@ local function annotate_on()
   if not jit_annotate_shutdown then
     jit_annotate_shutdown = newproxy(true)
     getmetatable(jit_annotate_shutdown).__gc = shutdown
+    os.exit = exit
   end
 end
 
