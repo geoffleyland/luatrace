@@ -92,7 +92,7 @@ local function annotate_record(tr, func, pc, depth)
   end
   t.bytecode[#t.bytecode+1] = { pc=pc, bc=l, depth=depth, info=jit.util.funcinfo(func, pc) }
   if pc >= 0 and bit.band(jit.util.funcbc(func, pc), 0xff) < 16 then -- ORDER BC
-    t.bytecode[#t.bytecode+1] = { pc=pc, bc=bc.line(func, pc+1, recprefix):sub(1,-2), depth=depth, info=jit.util.funcinfo(func, pc) }
+    t.bytecode[#t.bytecode+1] = { pc=pc, bc=bc.line(func, pc+1, prefix):sub(1,-2), depth=depth, info=jit.util.funcinfo(func, pc) }
   end
 end
 
