@@ -1,4 +1,9 @@
-local jit = require("jit")
+local ok, jit = pcall(require, "jit")
+if not ok then
+  local nofunc = function() end
+  return { on=nofunc, off=nofunc, start=nofunc, report=nofunc }
+end
+
 local bc = require("jit.bc")
 local vmdef = require("jit.vmdef")
 
@@ -218,7 +223,7 @@ end
 
 
 local function report_summary(file, results, result_map, total, show_lines)
-  local status_length = 0
+  local status_length = 12
   for _, r in ipairs(results) do
     status_length = math.max(status_length, #r.status)
   end
@@ -235,11 +240,14 @@ local function report_summary(file, results, result_map, total, show_lines)
     file:write(line_format:format(...))
   end
   local function rline2(k, a, b, c, line)
-    rline1(k, a, a / total.traces * 100, b, b / total.bytecodes * 100, c, c / total.lines * 100, line or "")
+    local tt, tb, tl = math.max(total.traces, 1), math.max(total.bytecodes, 1), math.max(total.lines, 1)
+    rline1(k, a, a / tt * 100, b, b / tb * 100, c, c / tl * 100, line or "")
   end
   local function rline3(k)
     local r = result_map[k]
-    rline2(k, r.traces, r.bytecodes, r.lines, r.line)
+    if r then
+      rline2(k, r.traces, r.bytecodes, r.lines, r.line)
+    end
   end
   rline3("Success")
   for i, r in ipairs(results) do
