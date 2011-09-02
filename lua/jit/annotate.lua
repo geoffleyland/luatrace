@@ -161,7 +161,7 @@ local function load_source_files(traces)
     end
   end
   for source in pairs(source_map) do
-    filename = source:sub(2,-1)
+    local filename = source:sub(2,-1)
     local f = io.open(filename, "r")
     if f then
       local lines = {}
