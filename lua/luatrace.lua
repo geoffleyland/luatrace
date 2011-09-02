@@ -293,6 +293,7 @@ local luatrace_raw_exit = os.exit
 
 
 local function luatrace_on_exit()
+  debug.sethook()
   if recorder then
     recorder.close()
   end
