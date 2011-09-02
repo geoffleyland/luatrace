@@ -1,5 +1,5 @@
 package = "luatrace"
-version = "scm-1"
+version = "scm-2"
 source =
 {
   url = "git://github.com/geoffleyland/luatrace.git",
