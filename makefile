@@ -8,7 +8,7 @@ LUA_H:= $(shell echo `echo $(LUA_H) | cut -f 1 -d \ `)
 LUA_INCDIR= $(shell echo `dirname $(LUA_H)`)
 
 CC=/usr/bin/cc
-CFLAGS=-O3 -Wall
+CFLAGS=-O3 -Wall -Wextra -std=c89 -pedantic
 
 # Guess a platform
 UNAME=$(shell uname -s)
