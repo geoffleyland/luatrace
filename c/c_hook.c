@@ -56,8 +56,9 @@ static hook_time_t lclock()
 static void get_microseconds_info(void)
 {
   LARGE_INTEGER frequency;
+  long long f;
   QueryPerformanceFrequency(&frequency);
-  long long f = frequency.QuadPart;
+  f = frequency.QuadPart;
   if (f < 1000000)
   {
     microseconds_numerator = 1000000 / f;
@@ -108,12 +109,13 @@ static hook_time_t time_out, elapsed;
 
 void hook(lua_State *L, lua_Debug *ar)
 {
+  int event;
   hook_time_t time_in = CLOCK_FUNCTION();
   elapsed += time_in - time_out;
 
   lua_rawgeti(L, LUA_REGISTRYINDEX, hook_index);
 
-  int event = ar->event;
+  event = ar->event;
   lua_pushstring(L, hooknames[event]);
 
   if (event == LUA_HOOKLINE)
@@ -165,7 +167,7 @@ static luaL_Reg hook_functions[] =
 
 LUALIB_API int luaopen_luatrace_c_hook(lua_State *L)
 {
-  // Register the module functions
+  /* Register the module functions */
   luaL_register(L, "c_hook", hook_functions);
   return 1;
 }
