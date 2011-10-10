@@ -1,2 +1,2 @@
-lua -e 'require("luatrace.profile").go()'
+lua -e "require('luatrace.profile').go()"
 
