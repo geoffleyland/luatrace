@@ -332,6 +332,7 @@ function luatrace.tron(settings)
   else
     recorder = settings.recorder
   end
+  assert(recorder, "couldn't find the trace recorder")
   recorder.open(settings)
 
   if settings.record_time ~= nil then do_record_time = settings.record_time end
@@ -347,11 +348,13 @@ end
 
 -- Turn it off and close the recorder
 function luatrace.troff()
-  debug.sethook()
-  recorder.close()
-  recorder = nil
-  os.remove(luatrace_exit_trick_file_name)
-  os.exit = luatrace_raw_exit
+  if recorder then
+    debug.sethook()
+    recorder.close()
+    recorder = nil
+    os.remove(luatrace_exit_trick_file_name)
+    os.exit = luatrace_raw_exit
+  end
 end
 
 
