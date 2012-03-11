@@ -42,7 +42,7 @@ record and process the traces.
 The trace collector uses Lua's debug hooks and adds timing information and a
 little bit of processing to make the traces easier to use.
 
-Timing is provided by one of three ways:
+Timing is provided in one of three ways:
 
 + Lua - with a debug hook calling `os.clock`
 + LuaJIT - with a debug hook calling `ffi.C.clock` - `os.clock` is not yet
@@ -116,7 +116,7 @@ See [the Lua Wiki](http://lua-users.org/wiki/ProfilingLuaCode) for a list of pro
 ## 1. What?
 
 `annotate.lua` collects information about the traces LuaJIT is attempting and
-summarises then information in a format that doesn't contain as much information
+summarises that information in a format that doesn't contain as much information
 as `-jdump`, but which might be more useful for you.
 
 `annotate.lua` is installed with luatrace.
