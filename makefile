@@ -8,13 +8,13 @@ LUA_H:= $(shell echo `echo $(LUA_H) | cut -f 1 -d \ `)
 LUA_INCDIR= $(shell echo `dirname $(LUA_H)`)
 
 CC=/usr/bin/cc
-CFLAGS=-O3 -Wall -Wextra -std=c89 -pedantic
+CFLAGS=-O3 -Wall -Wextra -pedantic
 
 # Guess a platform
 UNAME=$(shell uname -s)
 ifneq (,$(findstring Darwin,$(UNAME)))
   # OS X
-  CFLAGS:=$(CFLAGS) -fPIC -arch i686 -arch x86_64
+  CFLAGS:=$(CFLAGS) -fPIC -arch i686 -arch x86_64 -std=c89
   SHARED=-bundle -undefined dynamic_lookup
   SO_SUFFIX=so
 else
