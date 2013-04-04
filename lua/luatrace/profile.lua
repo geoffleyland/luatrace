@@ -263,29 +263,32 @@ function profile.record(a, b, c, d)
 
     local top = get_top()
 
-    if top then
-      if top.func.line_defined > 0 and
-        (line_number < top.func.line_defined or line_number > top.func.last_line_defined) then
-        -- luajit sometimes forgets to tell us about returns at all, so guess that
-        -- there might have been one and try again
+    if top.func.line_defined > 0 and
+      (line_number < top.func.line_defined or line_number > top.func.last_line_defined) then
+      -- luajit sometimes forgets to tell us about returns at all, so guess that
+      -- there might have been one and try again
+--      do_return()
+--      top = get_top()
+      local above_top = stack[stack.top-1]
+      if not above_top or
+        (above_top.func.line_defined > 0 and
+         (line_number < above_top.func.line_defined or line_number > above_top.func.last_line_defined)) then
+        error_count = error_count + 1
+        io.stderr:write(("ERROR (%4d, line %7d): counted execution of %g microseconds at line %d of a function defined at %s:%d-%d\n"):
+          format(error_count, trace_count, time, line_number, top.func.source_file.filename, top.func.line_defined, top.func.last_line_defined))
+      else
         do_return()
         top = get_top()
-        if top.func.line_defined > 0 and
-          (line_number < top.func.line_defined or line_number > top.func.last_line_defined) then
-          error_count = error_count + 1
-          io.stderr:write(("ERROR (%4d, line %7d): counted execution of %g microseconds at line %d of a function defined at %s:%d-%d\n"):
-            format(error_count, trace_count, time, line_number, top.func.source_file.filename, top.func.line_defined, top.func.last_line_defined))
-        end
       end
-
-      local line = get_line(line_number)
-      if top.current_line ~= line then
-        line.hits = line.hits + 1
-      end
-      line.self_time = line.self_time + time
-      top.func.self_time = top.func.self_time + time
-      top.current_line = line
     end
+
+    local line = get_line(line_number)
+    if top.current_line ~= line then
+      line.hits = line.hits + 1
+    end
+    line.self_time = line.self_time + time
+    top.func.self_time = top.func.self_time + time
+    top.current_line = line
   end
 end
 
