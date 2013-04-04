@@ -267,8 +267,6 @@ function profile.record(a, b, c, d)
       (line_number < top.func.line_defined or line_number > top.func.last_line_defined) then
       -- luajit sometimes forgets to tell us about returns at all, so guess that
       -- there might have been one and try again
---      do_return()
---      top = get_top()
       local above_top = stack[stack.top-1]
       if not above_top or
         (above_top.func.line_defined > 0 and
