@@ -6,13 +6,15 @@ end
 
 local bc = require("jit.bc")
 local vmdef = require("jit.vmdef")
+local jutil = jit.util or require"jit.util"
+local funcinfo, funcbc = jutil.funcinfo, jutil.funcbc
 
 
 -- Utilities -------------------------------------------------------------------
 
 -- Stolen from dump.lua
 local function fmtfunc(func, pc)
-  local fi = jit.util.funcinfo(func, pc)
+  local fi = funcinfo(func, pc)
   if fi.loc then
     return fi.loc
   elseif fi.ffid then
@@ -43,7 +45,7 @@ local trace_callbacks = {}
 
 function trace_callbacks.start(tr, func, pc, otr, oex)
   if not traces[tr] then traces[tr] = {} end
-  local t = { number=tr, start = jit.util.funcinfo(func, pc), bytecode={} }
+  local t = { number=tr, start = funcinfo(func, pc), bytecode={} }
   traces[tr][#traces[tr]+1] = t
 end
 
@@ -66,7 +68,7 @@ function trace_callbacks.abort(tr, func, pc, code, reason)
     c = tonumber(c) * 6
     return "bytecode "..vmdef.bcnames:sub(c, c+6):gsub(" ", "")
     end)
-  t.abort = { info=jit.util.funcinfo(func, pc), code=code, reason=reason }
+  t.abort = { info=funcinfo(func, pc), code=code, reason=reason }
   t.stop = t.abort.info
 end
 
@@ -90,9 +92,9 @@ local function annotate_record(tr, func, pc, depth)
   if pc <= 0 then
     l = l.."         ; "..fmtfunc(func)
   end
-  t.bytecode[#t.bytecode+1] = { pc=pc, bc=l, depth=depth, info=jit.util.funcinfo(func, pc) }
-  if pc >= 0 and bit.band(jit.util.funcbc(func, pc), 0xff) < 16 then -- ORDER BC
-    t.bytecode[#t.bytecode+1] = { pc=pc, bc=bc.line(func, pc+1, prefix):sub(1,-2), depth=depth, info=jit.util.funcinfo(func, pc) }
+  t.bytecode[#t.bytecode+1] = { pc=pc, bc=l, depth=depth, info=funcinfo(func, pc) }
+  if pc >= 0 and bit.band(funcbc(func, pc), 0xff) < 16 then -- ORDER BC
+    t.bytecode[#t.bytecode+1] = { pc=pc, bc=bc.line(func, pc+1, prefix):sub(1,-2), depth=depth, info=funcinfo(func, pc) }
   end
 end
 
@@ -108,7 +110,7 @@ local function remove_duplicate_traces(traces)
       -- Our first guess is if the start and end lines are different, then it's
       -- a different trace.
       local name = ("%s:%d-%s:%d"):
-        format(tr.start.source, tr.start.currentline, tr.stop.source, tr.stop.currentline)
+        format(tr.start.source, tr.start.currentline, tr.stop.source, tr.stop.currentline or -1)
       tr.name = name
       if not trace_map[name] then
         tr.attempts = 1
@@ -152,8 +154,8 @@ local function load_source_files(traces)
   local source_map = {}
 
   for i, tr in ipairs(traces) do
-    source_map[tr.start.source] = true
-    source_map[tr.stop.source] = true
+    if tr.start.source then source_map[tr.start.source] = true end
+    if tr.stop.source then source_map[tr.stop.source] = true end
     for k, b in ipairs(tr.bytecode) do
       if b.info.source then
         source_map[b.info.source] = true
@@ -272,7 +274,6 @@ local function annotate_report(report_file)
     jit.attach(annotate_trace)
     jit.attach(annotate_record)
   end
-
   report_file = report_file or start_report_file or io.stdout
 
   traces = remove_duplicate_traces(traces)
@@ -446,13 +447,13 @@ end
 
 
 -- Public module functions.
-module(...)
-
-on = annotate_on
-off = annotate_off
-start = annotate_start -- For -j command line option.
-report = annotate_report
-
+return
+{
+  on = annotate_on,
+  off = annotate_off,
+  start = annotate_start, -- For -j command line option.
+  report = annotate_report,
+}
 
 -- EOF -------------------------------------------------------------------------
 
