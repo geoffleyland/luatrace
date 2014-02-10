@@ -27,6 +27,12 @@ you wish to trace with `luatrace.tron()` and `luatrace.troff()`.
 If you wish to use the profiler directly rather than on a trace file you can use
 `lua -luatrace.profile <your lua file>` or `local luatrace = require("luatrace.profile")`.
 
+You can pass settings to `luatrace.tron`.
+Probably the only interesting one is the name of the file to write the trace to,
+for example, you might have Lua code that calls `luatrace.tron{trace_file_name="mytrace.txt"}`.
+Later, you can run the profiler on this trace with the command-line
+`luatrace.profile mytrace.txt`.
+
 luatrace runs under "plain" Lua and LuaJIT with the -joff option (LuaJIT doesn't
 call hooks in compiled code, and luatrace loses track of where it's up to)
 

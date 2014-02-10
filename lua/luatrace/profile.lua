@@ -458,8 +458,9 @@ end
 
 -- Stopping and starting -------------------------------------------------------
 
-function profile.go()
-  trace_file.read{ recorder=profile }
+function profile.go(trace_file_name)
+  if trace_file_name == "" then trace_file_name = nil end
+  trace_file.read{ recorder=profile, trace_file_name=trace_file_name }
 end
 
 
