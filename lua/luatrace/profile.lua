@@ -210,6 +210,9 @@ function profile.record(a, b, c, d)
     local func = get_function(filename, line_defined, last_line_defined)
     local frame = { func=func, tailcall=(a=="T") or nil }
     call(frame)
+    if not thread_top() then
+      push_thread(get_thread(-1))
+    end
     call_on_thread(frame)
 
   elseif a == "<" then                          -- Return
